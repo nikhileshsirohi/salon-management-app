@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class StylistBase(BaseModel):
@@ -11,6 +11,8 @@ class StylistBase(BaseModel):
 
 class StylistCreate(StylistBase):
     salon_id: int
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
     specialties: list[str] = Field(default_factory=list)
 
 
@@ -28,4 +30,6 @@ class StylistRead(StylistBase):
 
     id: int
     salon_id: int
+    user_id: int | None = None
+    email: EmailStr | None = None
     specialties: list[str] = Field(default_factory=list)

@@ -1,15 +1,16 @@
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.dependencies import get_current_owner, get_owned_salon
 from app.models.availability import StylistAvailability
 from app.models.booking import Booking, BookingCharge, BookingStatus
-from app.models.salon import Salon
 from app.models.stylist import Stylist
+from app.models.user import User
 from app.routers.bookings import booking_rows_query, to_booking_read
 from app.schemas.booking import BookingRead
 from app.schemas.dashboard import (
@@ -133,13 +134,9 @@ def get_dashboard_summary(
     target_date: date = Query(..., alias="date"),
     upcoming_limit: int = Query(default=5, ge=1, le=20),
     db: Session = Depends(get_db),
+    owner: User = Depends(get_current_owner),
 ) -> DashboardSummaryRead:
-    salon = db.get(Salon, salon_id)
-    if salon is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Salon not found",
-        )
+    get_owned_salon(salon_id, db, owner)
 
     today_bookings = db.scalar(
         select(func.count())

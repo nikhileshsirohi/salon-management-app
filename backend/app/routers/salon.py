@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.dependencies import get_current_owner, get_owned_salon
 from app.models.availability import SalonOperatingHour
 from app.models.salon import Salon
+from app.models.user import User
 from app.schemas.salon import (
     OperatingHourRead,
     OperatingHoursUpdate,
@@ -45,14 +47,12 @@ def to_operating_hour_read(hour: SalonOperatingHour) -> OperatingHourRead:
 
 
 @router.get("/{salon_id}", response_model=SalonRead)
-def get_salon(salon_id: int, db: Session = Depends(get_db)) -> Salon:
-    salon = db.get(Salon, salon_id)
-    if salon is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Salon not found",
-        )
-    return salon
+def get_salon(
+    salon_id: int,
+    db: Session = Depends(get_db),
+    owner: User = Depends(get_current_owner),
+) -> Salon:
+    return get_owned_salon(salon_id, db, owner)
 
 
 @router.put("/{salon_id}", response_model=SalonRead)
@@ -60,13 +60,9 @@ def update_salon(
     salon_id: int,
     payload: SalonUpdate,
     db: Session = Depends(get_db),
+    owner: User = Depends(get_current_owner),
 ) -> Salon:
-    salon = db.get(Salon, salon_id)
-    if salon is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Salon not found",
-        )
+    salon = get_owned_salon(salon_id, db, owner)
 
     update_data = payload.model_dump(exclude_unset=True)
     for field_name, value in update_data.items():
@@ -82,13 +78,9 @@ def update_salon(
 def get_operating_hours(
     salon_id: int,
     db: Session = Depends(get_db),
+    owner: User = Depends(get_current_owner),
 ) -> list[OperatingHourRead]:
-    salon = db.get(Salon, salon_id)
-    if salon is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Salon not found",
-        )
+    get_owned_salon(salon_id, db, owner)
 
     query = (
         select(SalonOperatingHour)
@@ -110,13 +102,9 @@ def update_operating_hours(
     salon_id: int,
     payload: OperatingHoursUpdate,
     db: Session = Depends(get_db),
+    owner: User = Depends(get_current_owner),
 ) -> list[OperatingHourRead]:
-    salon = db.get(Salon, salon_id)
-    if salon is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Salon not found",
-        )
+    get_owned_salon(salon_id, db, owner)
 
     query = select(SalonOperatingHour).where(SalonOperatingHour.salon_id == salon_id)
     existing_by_day = {hour.day_of_week: hour for hour in db.scalars(query).all()}
@@ -135,4 +123,4 @@ def update_operating_hours(
         db.add(hour)
 
     db.commit()
-    return get_operating_hours(salon_id, db)
+    return get_operating_hours(salon_id, db, owner)

@@ -3,6 +3,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -73,10 +74,19 @@ def overlaps_booking(
     starts_at_utc: datetime,
     ends_at_utc: datetime,
 ) -> bool:
+    starts_at_utc = ensure_utc(starts_at_utc)
+    ends_at_utc = ensure_utc(ends_at_utc)
     return any(
-        booking.starts_at_utc < ends_at_utc and booking.ends_at_utc > starts_at_utc
+        ensure_utc(booking.starts_at_utc) < ends_at_utc
+        and ensure_utc(booking.ends_at_utc) > starts_at_utc
         for booking in bookings
     )
+
+
+def ensure_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def get_active_stylist_service_salon(
@@ -114,6 +124,7 @@ def calculate_available_slots(
     service: Service,
     salon: Salon,
     target_date: date,
+    exclude_booking_id: int | None = None,
 ) -> list[AvailableSlotRead]:
     day_of_week = target_date.weekday()
     salon_hour = db.scalar(
@@ -144,6 +155,9 @@ def calculate_available_slots(
         Booking.starts_at_utc < day_end_utc,
         Booking.ends_at_utc > day_start_utc,
     )
+    if exclude_booking_id is not None:
+        booking_query = booking_query.where(Booking.id != exclude_booking_id)
+
     existing_bookings = list(db.scalars(booking_query).all())
 
     service_duration = timedelta(minutes=service.duration_minutes)
@@ -266,16 +280,23 @@ def create_public_booking(
         booking_type=BookingType.ONLINE,
         notes=payload.notes,
     )
-    db.add(booking)
-    db.flush()
+    try:
+        db.add(booking)
+        db.flush()
 
-    charge = BookingCharge(
-        booking_id=booking.id,
-        amount=service.price,
-        status=PaymentStatus.UNPAID,
-    )
-    db.add(charge)
-    db.commit()
+        charge = BookingCharge(
+            booking_id=booking.id,
+            amount=service.price,
+            status=PaymentStatus.UNPAID,
+        )
+        db.add(charge)
+        db.commit()
+    except IntegrityError as error:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Selected slot is no longer available",
+        ) from error
     db.refresh(booking)
 
     return PublicBookingRead(

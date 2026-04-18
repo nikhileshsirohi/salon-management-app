@@ -3,9 +3,11 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.dependencies import get_current_owner, get_owned_salon, get_owned_stylist
+from app.core.security import get_password_hash
 from app.models.availability import SalonOperatingHour, StylistAvailability
-from app.models.salon import Salon
 from app.models.stylist import Stylist, StylistSpecialty
+from app.models.user import User, UserRole
 from app.schemas.availability import (
     StylistAvailabilityRead,
     StylistAvailabilityReplace,
@@ -45,10 +47,13 @@ def get_specialty_names(db: Session, stylist_id: int) -> list[str]:
 
 
 def to_stylist_read(db: Session, stylist: Stylist) -> StylistRead:
+    user = db.get(User, stylist.user_id) if stylist.user_id else None
     return StylistRead.model_validate(
         {
             "id": stylist.id,
             "salon_id": stylist.salon_id,
+            "user_id": stylist.user_id,
+            "email": user.email if user else None,
             "name": stylist.name,
             "phone": stylist.phone,
             "bio": stylist.bio,
@@ -117,7 +122,9 @@ def list_stylists(
     salon_id: int = Query(..., description="Salon id to list stylists for"),
     include_inactive: bool = False,
     db: Session = Depends(get_db),
+    owner: User = Depends(get_current_owner),
 ) -> list[StylistRead]:
+    get_owned_salon(salon_id, db, owner)
     query = select(Stylist).where(Stylist.salon_id == salon_id).order_by(Stylist.name)
 
     if not include_inactive:
@@ -128,15 +135,30 @@ def list_stylists(
 
 
 @router.post("", response_model=StylistRead, status_code=status.HTTP_201_CREATED)
-def create_stylist(payload: StylistCreate, db: Session = Depends(get_db)) -> StylistRead:
-    salon = db.get(Salon, payload.salon_id)
-    if salon is None:
+def create_stylist(
+    payload: StylistCreate,
+    db: Session = Depends(get_db),
+    owner: User = Depends(get_current_owner),
+) -> StylistRead:
+    get_owned_salon(payload.salon_id, db, owner)
+
+    existing_user = db.scalar(select(User).where(User.email == payload.email))
+    if existing_user is not None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Salon not found",
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A user with this email already exists",
         )
 
-    stylist_data = payload.model_dump(exclude={"specialties"})
+    stylist_user = User(
+        email=payload.email,
+        password_hash=get_password_hash(payload.password),
+        role=UserRole.STYLIST,
+    )
+    db.add(stylist_user)
+    db.flush()
+
+    stylist_data = payload.model_dump(exclude={"specialties", "email", "password"})
+    stylist_data["user_id"] = stylist_user.id
     stylist = Stylist(**stylist_data)
     db.add(stylist)
     db.flush()
@@ -147,8 +169,12 @@ def create_stylist(payload: StylistCreate, db: Session = Depends(get_db)) -> Sty
 
 
 @router.get("/{stylist_id}", response_model=StylistRead)
-def get_stylist(stylist_id: int, db: Session = Depends(get_db)) -> StylistRead:
-    stylist = get_existing_stylist(db, stylist_id)
+def get_stylist(
+    stylist_id: int,
+    db: Session = Depends(get_db),
+    owner: User = Depends(get_current_owner),
+) -> StylistRead:
+    stylist = get_owned_stylist(stylist_id, db, owner)
     return to_stylist_read(db, stylist)
 
 
@@ -157,8 +183,9 @@ def update_stylist(
     stylist_id: int,
     payload: StylistUpdate,
     db: Session = Depends(get_db),
+    owner: User = Depends(get_current_owner),
 ) -> StylistRead:
-    stylist = get_existing_stylist(db, stylist_id)
+    stylist = get_owned_stylist(stylist_id, db, owner)
 
     update_data = payload.model_dump(exclude_unset=True, exclude={"specialties"})
     for field_name, value in update_data.items():
@@ -174,8 +201,12 @@ def update_stylist(
 
 
 @router.delete("/{stylist_id}", response_model=StylistRead)
-def deactivate_stylist(stylist_id: int, db: Session = Depends(get_db)) -> StylistRead:
-    stylist = get_existing_stylist(db, stylist_id)
+def deactivate_stylist(
+    stylist_id: int,
+    db: Session = Depends(get_db),
+    owner: User = Depends(get_current_owner),
+) -> StylistRead:
+    stylist = get_owned_stylist(stylist_id, db, owner)
 
     stylist.is_active = False
     db.add(stylist)
@@ -188,8 +219,9 @@ def deactivate_stylist(stylist_id: int, db: Session = Depends(get_db)) -> Stylis
 def get_stylist_availability(
     stylist_id: int,
     db: Session = Depends(get_db),
+    owner: User = Depends(get_current_owner),
 ) -> list[StylistAvailabilityRead]:
-    get_existing_stylist(db, stylist_id)
+    get_owned_stylist(stylist_id, db, owner)
     query = (
         select(StylistAvailability)
         .where(StylistAvailability.stylist_id == stylist_id)
@@ -204,8 +236,9 @@ def replace_stylist_availability(
     stylist_id: int,
     payload: StylistAvailabilityReplace,
     db: Session = Depends(get_db),
+    owner: User = Depends(get_current_owner),
 ) -> list[StylistAvailabilityRead]:
-    stylist = get_existing_stylist(db, stylist_id)
+    stylist = get_owned_stylist(stylist_id, db, owner)
     validate_against_salon_hours(db, stylist, payload.availability)
 
     db.execute(delete(StylistAvailability).where(StylistAvailability.stylist_id == stylist_id))

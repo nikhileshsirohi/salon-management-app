@@ -2,9 +2,11 @@ from datetime import UTC, date
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.dependencies import get_current_stylist
 from app.models.booking import Booking, BookingCharge, BookingStatus, BookingType, PaymentStatus
 from app.models.stylist import Stylist
 from app.routers.bookings import booking_rows_query, to_booking_read
@@ -19,27 +21,16 @@ def stylist_portal_status() -> dict[str, str]:
     return {"module": "stylist_portal", "status": "ready"}
 
 
-def get_active_stylist(db: Session, stylist_id: int) -> Stylist:
-    stylist = db.get(Stylist, stylist_id)
-    if stylist is None or not stylist.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Active stylist not found",
-        )
-    return stylist
-
-
 @router.get("/schedule", response_model=list[BookingRead])
 def get_stylist_schedule(
-    stylist_id: int = Query(...),
     target_date: date = Query(..., alias="date"),
     db: Session = Depends(get_db),
+    current_stylist: Stylist = Depends(get_current_stylist),
 ) -> list[BookingRead]:
-    get_active_stylist(db, stylist_id)
     query = (
         booking_rows_query()
         .where(
-            Booking.stylist_id == stylist_id,
+            Booking.stylist_id == current_stylist.id,
             Booking.local_date == target_date,
             Booking.status != BookingStatus.CANCELLED,
         )
@@ -51,13 +42,12 @@ def get_stylist_schedule(
 
 @router.get("/booking-history", response_model=list[BookingRead])
 def get_stylist_booking_history(
-    stylist_id: int = Query(...),
     date_from: date | None = None,
     date_to: date | None = None,
     db: Session = Depends(get_db),
+    current_stylist: Stylist = Depends(get_current_stylist),
 ) -> list[BookingRead]:
-    get_active_stylist(db, stylist_id)
-    query = booking_rows_query().where(Booking.stylist_id == stylist_id)
+    query = booking_rows_query().where(Booking.stylist_id == current_stylist.id)
 
     if date_from is not None:
         query = query.where(Booking.local_date >= date_from)
@@ -73,10 +63,11 @@ def get_stylist_booking_history(
 def create_walk_in_booking(
     payload: WalkInBookingCreate,
     db: Session = Depends(get_db),
+    current_stylist: Stylist = Depends(get_current_stylist),
 ) -> BookingRead:
     stylist, service, salon = get_active_stylist_service_salon(
         db,
-        payload.stylist_id,
+        current_stylist.id,
         payload.service_id,
     )
 
@@ -112,16 +103,23 @@ def create_walk_in_booking(
         booking_type=BookingType.WALK_IN,
         notes=payload.notes,
     )
-    db.add(booking)
-    db.flush()
+    try:
+        db.add(booking)
+        db.flush()
 
-    charge = BookingCharge(
-        booking_id=booking.id,
-        amount=service.price,
-        status=PaymentStatus.UNPAID,
-    )
-    db.add(charge)
-    db.commit()
+        charge = BookingCharge(
+            booking_id=booking.id,
+            amount=service.price,
+            status=PaymentStatus.UNPAID,
+        )
+        db.add(charge)
+        db.commit()
+    except IntegrityError as error:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Selected slot is no longer available",
+        ) from error
 
     row = db.execute(booking_rows_query().where(Booking.id == booking.id)).one()
     created_booking, created_charge, created_stylist, created_service = row

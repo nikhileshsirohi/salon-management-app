@@ -49,8 +49,16 @@ class PaymentStatusUpdate(BaseModel):
     status: PaymentStatus
 
 
+class BookingCancel(BaseModel):
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class BookingReschedule(BaseModel):
+    starts_at_utc: datetime
+    notes: str | None = Field(default=None, max_length=500)
+
+
 class WalkInBookingCreate(BaseModel):
-    stylist_id: int
     service_id: int
     customer_name: str = Field(min_length=1, max_length=255)
     customer_phone: str = Field(min_length=1, max_length=50)
