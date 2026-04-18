@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
     secret_key: str = "dev-change-this-secret-key"
     access_token_expire_minutes: int = 60 * 24 * 7
-    database_url: str = "postgresql+psycopg://salon_user:salon_password@localhost:5432/salon_db"
+    database_url: str = "postgresql+psycopg://salon_user:salon_password@localhost:5433/salon_db"
     backend_cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 
 
