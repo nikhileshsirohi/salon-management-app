@@ -7,13 +7,15 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.availability import SalonOperatingHour, StylistAvailability
-from app.models.booking import Booking, BookingStatus
+from app.models.booking import Booking, BookingCharge, BookingStatus, BookingType, PaymentStatus
 from app.models.salon import Salon
 from app.models.service import Service
 from app.models.stylist import Stylist, StylistSpecialty
 from app.schemas.public import (
     AvailabilityRead,
     AvailableSlotRead,
+    PublicBookingCreate,
+    PublicBookingRead,
     PublicServicesRead,
     PublicStylistsRead,
 )
@@ -77,41 +79,11 @@ def overlaps_booking(
     )
 
 
-@router.get("/services", response_model=PublicServicesRead)
-def list_public_services(
-    salon_id: int = Query(..., description="Salon id to list public services for"),
-    db: Session = Depends(get_db),
-) -> PublicServicesRead:
-    query = (
-        select(Service)
-        .where(Service.salon_id == salon_id, Service.is_active.is_(True))
-        .order_by(Service.name)
-    )
-    services = db.scalars(query).all()
-    return PublicServicesRead(services=[ServiceRead.model_validate(service) for service in services])
-
-
-@router.get("/stylists", response_model=PublicStylistsRead)
-def list_public_stylists(
-    salon_id: int = Query(..., description="Salon id to list public stylists for"),
-    db: Session = Depends(get_db),
-) -> PublicStylistsRead:
-    query = (
-        select(Stylist)
-        .where(Stylist.salon_id == salon_id, Stylist.is_active.is_(True))
-        .order_by(Stylist.name)
-    )
-    stylists = db.scalars(query).all()
-    return PublicStylistsRead(stylists=[to_stylist_read(db, stylist) for stylist in stylists])
-
-
-@router.get("/availability", response_model=AvailabilityRead)
-def get_public_availability(
+def get_active_stylist_service_salon(
+    db: Session,
     stylist_id: int,
     service_id: int,
-    target_date: date = Query(alias="date"),
-    db: Session = Depends(get_db),
-) -> AvailabilityRead:
+) -> tuple[Stylist, Service, Salon]:
     stylist = db.get(Stylist, stylist_id)
     if stylist is None or not stylist.is_active:
         raise HTTPException(
@@ -133,6 +105,16 @@ def get_public_availability(
             detail="Salon not found",
         )
 
+    return stylist, service, salon
+
+
+def calculate_available_slots(
+    db: Session,
+    stylist: Stylist,
+    service: Service,
+    salon: Salon,
+    target_date: date,
+) -> list[AvailableSlotRead]:
     day_of_week = target_date.weekday()
     salon_hour = db.scalar(
         select(SalonOperatingHour).where(
@@ -141,14 +123,7 @@ def get_public_availability(
         )
     )
     if salon_hour is None or salon_hour.is_closed:
-        return AvailabilityRead(
-            salon_id=salon.id,
-            stylist_id=stylist.id,
-            service_id=service.id,
-            date=target_date,
-            timezone=salon.timezone,
-            slots=[],
-        )
+        return []
 
     availability_query = (
         select(StylistAvailability)
@@ -196,6 +171,47 @@ def get_public_availability(
 
             slot_start += slot_step
 
+    return slots
+
+
+@router.get("/services", response_model=PublicServicesRead)
+def list_public_services(
+    salon_id: int = Query(..., description="Salon id to list public services for"),
+    db: Session = Depends(get_db),
+) -> PublicServicesRead:
+    query = (
+        select(Service)
+        .where(Service.salon_id == salon_id, Service.is_active.is_(True))
+        .order_by(Service.name)
+    )
+    services = db.scalars(query).all()
+    return PublicServicesRead(services=[ServiceRead.model_validate(service) for service in services])
+
+
+@router.get("/stylists", response_model=PublicStylistsRead)
+def list_public_stylists(
+    salon_id: int = Query(..., description="Salon id to list public stylists for"),
+    db: Session = Depends(get_db),
+) -> PublicStylistsRead:
+    query = (
+        select(Stylist)
+        .where(Stylist.salon_id == salon_id, Stylist.is_active.is_(True))
+        .order_by(Stylist.name)
+    )
+    stylists = db.scalars(query).all()
+    return PublicStylistsRead(stylists=[to_stylist_read(db, stylist) for stylist in stylists])
+
+
+@router.get("/availability", response_model=AvailabilityRead)
+def get_public_availability(
+    stylist_id: int,
+    service_id: int,
+    target_date: date = Query(..., alias="date", description="booking date in YYYY-MM-DD format"),
+    db: Session = Depends(get_db),
+) -> AvailabilityRead:
+    stylist, service, salon = get_active_stylist_service_salon(db, stylist_id, service_id)
+    slots = calculate_available_slots(db, stylist, service, salon, target_date)
+
     return AvailabilityRead(
         salon_id=salon.id,
         stylist_id=stylist.id,
@@ -203,4 +219,77 @@ def get_public_availability(
         date=target_date,
         timezone=salon.timezone,
         slots=slots,
+    )
+
+
+@router.post("/bookings", response_model=PublicBookingRead, status_code=status.HTTP_201_CREATED)
+def create_public_booking(
+    payload: PublicBookingCreate,
+    db: Session = Depends(get_db),
+) -> PublicBookingRead:
+    stylist, service, salon = get_active_stylist_service_salon(
+        db,
+        payload.stylist_id,
+        payload.service_id,
+    )
+
+    starts_at_utc = payload.starts_at_utc
+    if starts_at_utc.tzinfo is None:
+        starts_at_utc = starts_at_utc.replace(tzinfo=UTC)
+    starts_at_utc = starts_at_utc.astimezone(UTC)
+
+    local_start = starts_at_utc.astimezone(ZoneInfo(salon.timezone))
+    target_date = local_start.date()
+    available_slots = calculate_available_slots(db, stylist, service, salon, target_date)
+    matching_slot = next(
+        (slot for slot in available_slots if slot.starts_at_utc == starts_at_utc),
+        None,
+    )
+
+    if matching_slot is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Selected slot is no longer available",
+        )
+
+    booking = Booking(
+        salon_id=salon.id,
+        stylist_id=stylist.id,
+        service_id=service.id,
+        customer_name=payload.customer_name,
+        customer_phone=payload.customer_phone,
+        customer_email=payload.customer_email,
+        starts_at_utc=matching_slot.starts_at_utc,
+        ends_at_utc=matching_slot.ends_at_utc,
+        local_date=target_date,
+        status=BookingStatus.BOOKED,
+        booking_type=BookingType.ONLINE,
+        notes=payload.notes,
+    )
+    db.add(booking)
+    db.flush()
+
+    charge = BookingCharge(
+        booking_id=booking.id,
+        amount=service.price,
+        status=PaymentStatus.UNPAID,
+    )
+    db.add(charge)
+    db.commit()
+    db.refresh(booking)
+
+    return PublicBookingRead(
+        id=booking.id,
+        salon_id=booking.salon_id,
+        stylist_id=booking.stylist_id,
+        service_id=booking.service_id,
+        customer_name=booking.customer_name,
+        customer_phone=booking.customer_phone,
+        customer_email=booking.customer_email,
+        starts_at_utc=booking.starts_at_utc,
+        ends_at_utc=booking.ends_at_utc,
+        local_date=booking.local_date,
+        status=booking.status.value,
+        booking_type=booking.booking_type.value,
+        amount=charge.amount,
     )
