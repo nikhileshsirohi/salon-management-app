@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_owner, get_owned_salon
-from app.models.booking import Booking, BookingCharge, BookingStatus
+from app.models.booking import Booking, BookingCharge, BookingStatus, PaymentStatus
 from app.models.service import Service
 from app.models.stylist import Stylist
 from app.models.user import User
@@ -158,6 +158,12 @@ def update_booking_payment_status(
         )
 
     get_owned_salon(booking.salon_id, db, owner)
+    if booking.status == BookingStatus.CANCELLED and payload.status == PaymentStatus.PAID:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cancelled bookings cannot be marked paid",
+        )
+
     charge = db.scalar(select(BookingCharge).where(BookingCharge.booking_id == booking_id))
     if charge is None:
         raise HTTPException(

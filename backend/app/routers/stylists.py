@@ -85,6 +85,16 @@ def to_availability_read(availability: StylistAvailability) -> StylistAvailabili
     return StylistAvailabilityRead.model_validate(availability)
 
 
+def list_availability_for_stylist(db: Session, stylist_id: int) -> list[StylistAvailabilityRead]:
+    query = (
+        select(StylistAvailability)
+        .where(StylistAvailability.stylist_id == stylist_id)
+        .order_by(StylistAvailability.day_of_week, StylistAvailability.starts_at)
+    )
+    availability = db.scalars(query).all()
+    return [to_availability_read(item) for item in availability]
+
+
 def validate_against_salon_hours(
     db: Session,
     stylist: Stylist,
@@ -222,13 +232,7 @@ def get_stylist_availability(
     owner: User = Depends(get_current_owner),
 ) -> list[StylistAvailabilityRead]:
     get_owned_stylist(stylist_id, db, owner)
-    query = (
-        select(StylistAvailability)
-        .where(StylistAvailability.stylist_id == stylist_id)
-        .order_by(StylistAvailability.day_of_week, StylistAvailability.starts_at)
-    )
-    availability = db.scalars(query).all()
-    return [to_availability_read(item) for item in availability]
+    return list_availability_for_stylist(db, stylist_id)
 
 
 @router.put("/{stylist_id}/availability", response_model=list[StylistAvailabilityRead])
@@ -247,4 +251,4 @@ def replace_stylist_availability(
         db.add(StylistAvailability(stylist_id=stylist_id, **item.model_dump()))
 
     db.commit()
-    return get_stylist_availability(stylist_id, db)
+    return list_availability_for_stylist(db, stylist_id)

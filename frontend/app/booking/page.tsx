@@ -1,136 +1,290 @@
-import Link from "next/link";
-import { CalendarDays, ChevronRight, Clock3, Scissors, UserRound } from "lucide-react";
+"use client";
 
-const services = ["Haircut", "Hair Color", "Spa Facial", "Bridal Styling"];
-const stylists = ["Maya Chen", "Ava Brooks", "Nora Lee"];
-const times = ["10:00 AM", "11:30 AM", "1:00 PM", "3:30 PM", "5:00 PM"];
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { AppShell } from "@/components/layout/app-shell";
+import { Notice } from "@/components/ui/notice";
+import { DEFAULT_SALON_ID, apiRequest, formatCurrency, formatTime, todayInputValue } from "@/lib/api";
+import type { AvailabilityResponse, AvailableSlot, Service, Stylist } from "@/types/api";
+
+type BookingForm = {
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string;
+  notes: string;
+};
+
+const initialForm: BookingForm = {
+  customer_name: "",
+  customer_phone: "",
+  customer_email: "",
+  notes: "",
+};
 
 export default function BookingPage() {
+  const [services, setServices] = useState<Service[]>([]);
+  const [stylists, setStylists] = useState<Stylist[]>([]);
+  const [serviceId, setServiceId] = useState<number | null>(null);
+  const [stylistId, setStylistId] = useState<number | null>(null);
+  const [date, setDate] = useState(todayInputValue());
+  const [slots, setSlots] = useState<AvailableSlot[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
+  const [form, setForm] = useState(initialForm);
+  const [loading, setLoading] = useState(true);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const selectedService = useMemo(
+    () => services.find((service) => service.id === serviceId),
+    [services, serviceId],
+  );
+
+  useEffect(() => {
+    async function loadPublicData() {
+      setLoading(true);
+      setError("");
+      try {
+        const [serviceData, stylistData] = await Promise.all([
+          apiRequest<{ services: Service[] }>(`/public/services?salon_id=${DEFAULT_SALON_ID}`),
+          apiRequest<{ stylists: Stylist[] }>(`/public/stylists?salon_id=${DEFAULT_SALON_ID}`),
+        ]);
+        setServices(serviceData.services);
+        setStylists(stylistData.stylists);
+        setServiceId(serviceData.services[0]?.id ?? null);
+        setStylistId(stylistData.stylists[0]?.id ?? null);
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "Could not load booking options.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadPublicData();
+  }, []);
+
+  useEffect(() => {
+    async function loadSlots() {
+      if (!serviceId || !stylistId || !date) return;
+      setSlotsLoading(true);
+      setSelectedSlot(null);
+      setError("");
+      try {
+        const availability = await apiRequest<AvailabilityResponse>(
+          `/public/availability?stylist_id=${stylistId}&service_id=${serviceId}&date=${date}`,
+        );
+        setSlots(availability.slots);
+      } catch (caught) {
+        setSlots([]);
+        setError(caught instanceof Error ? caught.message : "Could not load availability.");
+      } finally {
+        setSlotsLoading(false);
+      }
+    }
+
+    loadSlots();
+  }, [serviceId, stylistId, date]);
+
+  async function submitBooking(event: FormEvent) {
+    event.preventDefault();
+    setMessage("");
+    setError("");
+
+    if (!selectedSlot || !serviceId || !stylistId) {
+      setError("Choose a service, stylist, date, and time slot.");
+      return;
+    }
+    if (!form.customer_name.trim() || !form.customer_phone.trim()) {
+      setError("Name and phone are required.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await apiRequest("/public/bookings", {
+        method: "POST",
+        body: {
+          stylist_id: stylistId,
+          service_id: serviceId,
+          customer_name: form.customer_name.trim(),
+          customer_phone: form.customer_phone.trim(),
+          customer_email: form.customer_email.trim() || null,
+          starts_at_utc: selectedSlot.starts_at_utc,
+          notes: form.notes.trim() || null,
+        },
+      });
+      setMessage(`Booked for ${formatTime(selectedSlot.starts_at_local)} on ${date}.`);
+      setForm(initialForm);
+      setSelectedSlot(null);
+      const availability = await apiRequest<AvailabilityResponse>(
+        `/public/availability?stylist_id=${stylistId}&service_id=${serviceId}&date=${date}`,
+      );
+      setSlots(availability.slots);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Booking failed. Please try another slot.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
-    <main className="min-h-screen bg-[#fffaf6] text-[#171312]">
-      <div className="mx-auto max-w-7xl px-5 py-6 sm:px-8">
-        <nav className="flex items-center justify-between">
-          <Link className="flex items-center gap-3 text-lg font-bold" href="/">
-            <span className="grid h-10 w-10 place-items-center rounded-lg bg-[#171312] text-white">
-              <Scissors size={20} />
-            </span>
-            Luma Salon
-          </Link>
-          <Link className="text-sm font-bold text-[#c64f67]" href="/owner/dashboard">
-            Owner view
-          </Link>
-        </nav>
-
-        <section className="mt-8 grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="relative min-h-[520px] overflow-hidden rounded-lg">
-            <img
-              alt="Salon chair and mirror"
-              className="absolute inset-0 h-full w-full object-cover"
-              src="https://images.unsplash.com/photo-1633681926022-84c23e8cb2d6?auto=format&fit=crop&w=1200&q=85"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#171312]/85 via-[#171312]/25 to-transparent" />
-            <div className="absolute bottom-0 p-6 text-white sm:p-8">
-              <p className="text-sm font-bold uppercase tracking-normal text-white/75">
-                Reserve your chair
-              </p>
-              <h1 className="mt-3 text-4xl font-bold leading-tight sm:text-5xl">
-                Pick a service, stylist, and time in one calm flow.
-              </h1>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-[#eaded6] bg-white p-5 shadow-sm sm:p-7">
-            <div className="grid gap-5">
-              <section>
-                <div className="mb-3 flex items-center gap-2 font-bold">
-                  <Scissors size={18} className="text-[#c64f67]" />
-                  Select service
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {services.map((service, index) => (
-                    <button
-                      className={`rounded-lg border p-4 text-left font-bold ${
-                        index === 0
-                          ? "border-[#c64f67] bg-[#fff1f4] text-[#9f3148]"
-                          : "border-[#eaded6] bg-white text-[#171312]"
-                      }`}
-                      key={service}
-                    >
-                      {service}
-                      <span className="mt-2 block text-sm font-semibold text-[#6f625d]">
-                        From ${index === 0 ? "55" : index === 1 ? "120" : "75"}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              <section>
-                <div className="mb-3 flex items-center gap-2 font-bold">
-                  <UserRound size={18} className="text-[#47685a]" />
-                  Choose stylist
-                </div>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {stylists.map((stylist, index) => (
-                    <button
-                      className={`rounded-lg border p-4 text-left ${
-                        index === 1 ? "border-[#47685a] bg-[#eef5f0]" : "border-[#eaded6]"
-                      }`}
-                      key={stylist}
-                    >
-                      <span className="block font-bold">{stylist}</span>
-                      <span className="text-sm font-semibold text-[#6f625d]">
-                        {index === 0 ? "Color" : index === 1 ? "Cuts" : "Texture"}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              <section className="grid gap-4 sm:grid-cols-2">
-                <label className="grid gap-2 text-sm font-bold">
-                  <span className="flex items-center gap-2">
-                    <CalendarDays size={18} className="text-[#b88945]" />
-                    Appointment date
-                  </span>
-                  <input
-                    className="rounded-lg border border-[#eaded6] px-4 py-3 outline-none focus:border-[#c64f67]"
-                    type="date"
-                  />
-                </label>
-                <label className="grid gap-2 text-sm font-bold">
-                  <span className="flex items-center gap-2">
-                    <Clock3 size={18} className="text-[#b88945]" />
-                    Available time
-                  </span>
-                  <select className="rounded-lg border border-[#eaded6] px-4 py-3 outline-none focus:border-[#c64f67]">
-                    {times.map((time) => (
-                      <option key={time}>{time}</option>
-                    ))}
-                  </select>
-                </label>
-              </section>
-
-              <div className="rounded-lg bg-[#171312] p-5 text-white">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-white/65">
-                      Haircut with Ava Brooks
-                    </p>
-                    <p className="mt-1 text-2xl font-bold">$55.00</p>
-                  </div>
-                  <Link
-                    className="inline-flex items-center gap-2 rounded-lg bg-[#c64f67] px-4 py-3 font-bold"
-                    href="/booking/confirmation"
-                  >
-                    Continue <ChevronRight size={18} />
-                  </Link>
-                </div>
-              </div>
-            </div>
+    <AppShell>
+      <main className="page">
+        <section className="section-header">
+          <div>
+            <span className="eyebrow">Book online</span>
+            <h1 className="page-title">Reserve your salon visit</h1>
+            <p className="lead">Live availability, no customer login required.</p>
           </div>
         </section>
-      </div>
-    </main>
+
+        {loading && <div className="loading">Loading salon services and stylists...</div>}
+        {error && <Notice kind="error">{error}</Notice>}
+        {message && <Notice kind="success">{message}</Notice>}
+
+        {!loading && (
+          <div className="grid grid-2 section">
+            <div className="stack">
+              <section className="card stack">
+                <h2>Choose a service</h2>
+                {services.length === 0 ? (
+                  <div className="empty">No services are available yet.</div>
+                ) : (
+                  <div className="grid">
+                    {services.map((service) => (
+                      <button
+                        className={`card select-card ${service.id === serviceId ? "active" : ""}`}
+                        key={service.id}
+                        onClick={() => setServiceId(service.id)}
+                        type="button"
+                      >
+                        <div className="row" style={{ justifyContent: "space-between" }}>
+                          <strong>{service.name}</strong>
+                          <span className="pill">{formatCurrency(service.price)}</span>
+                        </div>
+                        <p>{service.duration_minutes} minutes</p>
+                        {service.description && <p className="lead">{service.description}</p>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="card stack">
+                <h2>Choose a stylist</h2>
+                {stylists.length === 0 ? (
+                  <div className="empty">No stylists are available yet.</div>
+                ) : (
+                  <div className="grid">
+                    {stylists.map((stylist) => (
+                      <button
+                        className={`card select-card ${stylist.id === stylistId ? "active" : ""}`}
+                        key={stylist.id}
+                        onClick={() => setStylistId(stylist.id)}
+                        type="button"
+                      >
+                        <div className="row">
+                          <img
+                            alt={stylist.name}
+                            className="avatar"
+                            src={
+                              stylist.profile_photo_url ||
+                              "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=240&q=80"
+                            }
+                          />
+                          <div>
+                            <strong>{stylist.name}</strong>
+                            <div className="row">
+                              {stylist.specialties.map((specialty) => (
+                                <span className="pill" key={specialty}>
+                                  {specialty}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+
+            <form className="card stack" onSubmit={submitBooking}>
+              <h2>Your appointment</h2>
+              {selectedService && (
+                <Notice>
+                  {selectedService.name}, {selectedService.duration_minutes} minutes,{" "}
+                  {formatCurrency(selectedService.price)}
+                </Notice>
+              )}
+              <div className="field">
+                <label>Date</label>
+                <input min={todayInputValue()} type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+              </div>
+              <div className="stack">
+                <strong>Available slots</strong>
+                {slotsLoading ? (
+                  <div className="loading">Checking openings...</div>
+                ) : slots.length === 0 ? (
+                  <div className="empty">No slots available for this selection.</div>
+                ) : (
+                  <div className="slot-grid">
+                    {slots.map((slot) => (
+                      <button
+                        className={`slot ${selectedSlot?.starts_at_utc === slot.starts_at_utc ? "active" : ""}`}
+                        key={slot.starts_at_utc}
+                        onClick={() => setSelectedSlot(slot)}
+                        type="button"
+                      >
+                        {formatTime(slot.starts_at_local)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="form-grid">
+                <div className="field">
+                  <label>Name</label>
+                  <input
+                    value={form.customer_name}
+                    onChange={(event) => setForm({ ...form, customer_name: event.target.value })}
+                    placeholder="Your name"
+                  />
+                </div>
+                <div className="field">
+                  <label>Phone</label>
+                  <input
+                    value={form.customer_phone}
+                    onChange={(event) => setForm({ ...form, customer_phone: event.target.value })}
+                    placeholder="Phone number"
+                  />
+                </div>
+              </div>
+              <div className="field">
+                <label>Email</label>
+                <input
+                  type="email"
+                  value={form.customer_email}
+                  onChange={(event) => setForm({ ...form, customer_email: event.target.value })}
+                  placeholder="Optional"
+                />
+              </div>
+              <div className="field">
+                <label>Notes</label>
+                <textarea
+                  value={form.notes}
+                  onChange={(event) => setForm({ ...form, notes: event.target.value })}
+                  placeholder="Anything we should know?"
+                />
+              </div>
+              <button className="button" disabled={submitting} type="submit">
+                {submitting ? "Booking..." : "Confirm booking"}
+              </button>
+            </form>
+          </div>
+        )}
+      </main>
+    </AppShell>
   );
 }

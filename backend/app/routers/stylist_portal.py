@@ -12,6 +12,7 @@ from app.models.stylist import Stylist
 from app.routers.bookings import booking_rows_query, to_booking_read
 from app.routers.public import calculate_available_slots, get_active_stylist_service_salon
 from app.schemas.booking import BookingRead, WalkInBookingCreate
+from app.schemas.public import AvailabilityRead
 
 router = APIRouter()
 
@@ -57,6 +58,30 @@ def get_stylist_booking_history(
     query = query.order_by(Booking.starts_at_utc.desc())
     rows = db.execute(query).all()
     return [to_booking_read(booking, charge, stylist, service) for booking, charge, stylist, service in rows]
+
+
+@router.get("/availability", response_model=AvailabilityRead)
+def get_my_availability(
+    service_id: int,
+    target_date: date = Query(..., alias="date"),
+    db: Session = Depends(get_db),
+    current_stylist: Stylist = Depends(get_current_stylist),
+) -> AvailabilityRead:
+    stylist, service, salon = get_active_stylist_service_salon(
+        db,
+        current_stylist.id,
+        service_id,
+    )
+    slots = calculate_available_slots(db, stylist, service, salon, target_date)
+
+    return AvailabilityRead(
+        salon_id=salon.id,
+        stylist_id=stylist.id,
+        service_id=service.id,
+        date=target_date,
+        timezone=salon.timezone,
+        slots=slots,
+    )
 
 
 @router.post("/walk-ins", response_model=BookingRead, status_code=status.HTTP_201_CREATED)

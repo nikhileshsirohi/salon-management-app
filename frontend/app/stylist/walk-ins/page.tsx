@@ -1,9 +1,5 @@
+import { redirect } from "next/navigation";
+
 export default function StylistWalkInsPage() {
-  return (
-    <main className="min-h-screen px-6 py-10">
-      <div className="mx-auto max-w-6xl">
-        <h1 className="text-3xl font-bold">Add walk-in</h1>
-      </div>
-    </main>
-  );
+  redirect("/stylist/walk-in");
 }

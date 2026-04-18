@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.dependencies import get_current_owner, get_owned_salon
 from app.models.availability import StylistAvailability
-from app.models.booking import Booking, BookingCharge, BookingStatus
+from app.models.booking import Booking, BookingCharge, BookingStatus, PaymentStatus
 from app.models.stylist import Stylist
 from app.models.user import User
 from app.routers.bookings import booking_rows_query, to_booking_read
@@ -27,7 +27,7 @@ def dashboard_status() -> dict[str, str]:
     return {"module": "dashboard", "status": "ready"}
 
 
-ACTIVE_REVENUE_STATUSES = [BookingStatus.BOOKED, BookingStatus.COMPLETED]
+ACTIVE_UTILIZATION_STATUSES = [BookingStatus.BOOKED, BookingStatus.COMPLETED]
 
 
 def minutes_between(start_time, end_time) -> int:
@@ -67,7 +67,7 @@ def get_today_revenue(db: Session, salon_id: int, target_date: date) -> Decimal:
         .where(
             Booking.salon_id == salon_id,
             Booking.local_date == target_date,
-            Booking.status.in_(ACTIVE_REVENUE_STATUSES),
+            BookingCharge.status == PaymentStatus.PAID,
         )
     )
     amounts = db.scalars(query).all()
@@ -105,7 +105,7 @@ def get_stylist_utilization(
             select(Booking).where(
                 Booking.stylist_id == stylist.id,
                 Booking.local_date == target_date,
-                Booking.status.in_(ACTIVE_REVENUE_STATUSES),
+                Booking.status.in_(ACTIVE_UTILIZATION_STATUSES),
             )
         ).all()
         booked_minutes = sum(booking_duration_minutes(booking) for booking in bookings)
