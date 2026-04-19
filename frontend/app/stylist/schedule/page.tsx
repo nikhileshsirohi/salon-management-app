@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProtectedPage } from "@/components/layout/protected-page";
+import { StylistBookingCard } from "@/components/bookings/stylist-booking-card";
 import { Notice } from "@/components/ui/notice";
 import { apiRequest, todayInputValue } from "@/lib/api";
 import type { Booking } from "@/types/api";
@@ -23,20 +24,20 @@ function StylistSchedule({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    async function loadSchedule() {
-      setLoading(true);
-      setError("");
-      try {
-        const data = await apiRequest<Booking[]>(`/stylist/me/schedule?date=${date}`, { token });
-        setBookings(data);
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "Could not load schedule.");
-      } finally {
-        setLoading(false);
-      }
+  async function loadSchedule() {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiRequest<Booking[]>(`/stylist/me/schedule?date=${date}`, { token });
+      setBookings(data);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not load schedule.");
+    } finally {
+      setLoading(false);
     }
+  }
 
+  useEffect(() => {
     loadSchedule();
   }, [date, token]);
 
@@ -60,19 +61,7 @@ function StylistSchedule({ token }: { token: string }) {
           <div className="empty">No appointments for this date.</div>
         ) : (
           bookings.map((booking) => (
-            <div className="card" key={booking.id}>
-              <div className="row" style={{ justifyContent: "space-between" }}>
-                <strong>{booking.customer_name}</strong>
-                <span className="pill">{booking.booking_type}</span>
-              </div>
-              <p>{booking.service_name}</p>
-              <p className="muted">
-                {booking.customer_phone}
-                {booking.customer_email ? ` | ${booking.customer_email}` : ""}
-              </p>
-              <p>{new Date(booking.starts_at_utc).toLocaleString()}</p>
-              {booking.notes && <p className="lead">{booking.notes}</p>}
-            </div>
+            <StylistBookingCard booking={booking} key={booking.id} onChanged={loadSchedule} token={token} />
           ))
         )}
       </section>

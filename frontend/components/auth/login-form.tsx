@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { Notice } from "@/components/ui/notice";
+import { PasswordField } from "@/components/ui/password-field";
 import { clearAuth, login } from "@/lib/auth";
 import type { UserRole } from "@/types/api";
 
@@ -20,8 +21,8 @@ const roleDashboard: Record<UserRole, string> = {
 export function LoginForm({ expectedRole }: LoginFormProps) {
   const router = useRouter();
   const params = useSearchParams();
-  const [email, setEmail] = useState(expectedRole === "stylist" ? "stylist@test.com" : "owner@example.com");
-  const [password, setPassword] = useState("password123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -86,24 +87,25 @@ export function LoginForm({ expectedRole }: LoginFormProps) {
               <label>Email</label>
               <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" />
             </div>
-            <div className="field">
-              <label>Password</label>
-              <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" />
-            </div>
+            <PasswordField label="Password" value={password} onChange={setPassword} />
             <button className="button" disabled={loading} type="submit">
               {loading ? "Signing in..." : "Sign in"}
             </button>
             {expectedRole === "owner" ? (
-              <Link href="/stylist/login">Use staff login instead</Link>
+              <div className="row">
+                <Link href="/owner/signup">Create owner account</Link>
+                <Link href="/stylist/login">Use staff login instead</Link>
+              </div>
             ) : expectedRole === "stylist" ? (
               <Link href="/owner/login">Use owner login instead</Link>
             ) : (
               <div className="row">
                 <Link href="/owner/login">Owner login</Link>
                 <Link href="/stylist/login">Staff login</Link>
+                <Link href="/owner/signup">Owner signup</Link>
               </div>
             )}
-            <Link href="/booking">Customer booking page</Link>
+            <Link href="/customer/booking">Customer booking page</Link>
           </form>
         </div>
       </main>

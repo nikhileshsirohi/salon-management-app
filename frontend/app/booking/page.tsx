@@ -3,8 +3,8 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Notice } from "@/components/ui/notice";
-import { DEFAULT_SALON_ID, apiRequest, formatCurrency, formatTime, todayInputValue } from "@/lib/api";
-import type { AvailabilityResponse, AvailableSlot, Service, Stylist } from "@/types/api";
+import { apiRequest, formatCurrency, formatTime, todayInputValue } from "@/lib/api";
+import type { AvailabilityResponse, AvailableSlot, Salon, Service, Stylist } from "@/types/api";
 
 type BookingForm = {
   customer_name: string;
@@ -21,6 +21,8 @@ const initialForm: BookingForm = {
 };
 
 export default function BookingPage() {
+  const [salons, setSalons] = useState<Salon[]>([]);
+  const [salonId, setSalonId] = useState<number | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [stylists, setStylists] = useState<Stylist[]>([]);
   const [serviceId, setServiceId] = useState<number | null>(null);
@@ -41,13 +43,33 @@ export default function BookingPage() {
   );
 
   useEffect(() => {
-    async function loadPublicData() {
+    async function loadSalons() {
       setLoading(true);
       setError("");
       try {
+        const data = await apiRequest<{ salons: Salon[] }>("/public/salons");
+        setSalons(data.salons);
+        setSalonId(data.salons[0]?.id ?? null);
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "Could not load salons.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadSalons();
+  }, []);
+
+  useEffect(() => {
+    async function loadPublicData() {
+      if (!salonId) return;
+      setLoading(true);
+      setError("");
+      setSelectedSlot(null);
+      try {
         const [serviceData, stylistData] = await Promise.all([
-          apiRequest<{ services: Service[] }>(`/public/services?salon_id=${DEFAULT_SALON_ID}`),
-          apiRequest<{ stylists: Stylist[] }>(`/public/stylists?salon_id=${DEFAULT_SALON_ID}`),
+          apiRequest<{ services: Service[] }>(`/public/services?salon_id=${salonId}`),
+          apiRequest<{ stylists: Stylist[] }>(`/public/stylists?salon_id=${salonId}`),
         ]);
         setServices(serviceData.services);
         setStylists(stylistData.stylists);
@@ -61,7 +83,7 @@ export default function BookingPage() {
     }
 
     loadPublicData();
-  }, []);
+  }, [salonId]);
 
   useEffect(() => {
     async function loadSlots() {
@@ -143,8 +165,45 @@ export default function BookingPage() {
         {message && <Notice kind="success">{message}</Notice>}
 
         {!loading && (
+          <>
+          <section className="image-strip section">
+            <img
+              alt="Salon wash station"
+              src="https://images.unsplash.com/photo-1595476108010-b4d1f102b1b1?auto=format&fit=crop&w=900&q=80"
+            />
+            <img
+              alt="Hair styling tools"
+              src="https://images.unsplash.com/photo-1522337660859-02fbefca4702?auto=format&fit=crop&w=900&q=80"
+            />
+            <img
+              alt="Salon chair"
+              src="https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=900&q=80"
+            />
+          </section>
           <div className="grid grid-2 section">
             <div className="stack">
+              <section className="card stack">
+                <h2>Choose a salon</h2>
+                {salons.length === 0 ? (
+                  <div className="empty">No salons are available yet.</div>
+                ) : (
+                  <div className="grid">
+                    {salons.map((salon) => (
+                      <button
+                        className={`card select-card ${salon.id === salonId ? "active" : ""}`}
+                        key={salon.id}
+                        onClick={() => setSalonId(salon.id)}
+                        type="button"
+                      >
+                        <strong>{salon.name}</strong>
+                        {salon.address && <p className="muted">{salon.address}</p>}
+                        {salon.phone && <span className="pill">{salon.phone}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+
               <section className="card stack">
                 <h2>Choose a service</h2>
                 {services.length === 0 ? (
@@ -283,6 +342,7 @@ export default function BookingPage() {
               </button>
             </form>
           </div>
+          </>
         )}
       </main>
     </AppShell>

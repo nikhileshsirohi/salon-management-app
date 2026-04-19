@@ -12,6 +12,15 @@ export type AuthToken = {
   user: User;
 };
 
+export type OwnerSignupPayload = {
+  email: string;
+  password: string;
+  salon_name: string;
+  salon_address?: string | null;
+  salon_phone?: string | null;
+  timezone: string;
+};
+
 export type Service = {
   id: number;
   salon_id: number;
@@ -37,7 +46,7 @@ export type Stylist = {
 
 export type Salon = {
   id: number;
-  owner_user_id: number;
+  owner_user_id?: number;
   name: string;
   address?: string | null;
   phone?: string | null;

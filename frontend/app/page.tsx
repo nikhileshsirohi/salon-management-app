@@ -28,7 +28,7 @@ export default function HomePage() {
               creating an account.
             </p>
             <div className="row">
-              <Link className="button" href="/booking">
+              <Link className="button" href="/customer/booking">
                 Book appointment
               </Link>
               <Link className="button secondary" href={dashboardHref}>

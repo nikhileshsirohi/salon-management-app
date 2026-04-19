@@ -1,7 +1,7 @@
 "use client";
 
-import { apiRequest } from "@/lib/api";
-import type { AuthToken, User } from "@/types/api";
+import { API_URL, apiRequest } from "@/lib/api";
+import type { AuthToken, OwnerSignupPayload, User } from "@/types/api";
 
 const TOKEN_KEY = "salon_app_token";
 const USER_KEY = "salon_app_user";
@@ -32,11 +32,29 @@ export async function login(username: string, password: string) {
   form.set("username", username);
   form.set("password", password);
 
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1"}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: form.toString(),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_URL}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+      signal: controller.signal,
+    });
+  } catch (caught) {
+    if (caught instanceof DOMException && caught.name === "AbortError") {
+      throw new Error("Backend did not respond. Please check that FastAPI is running on http://127.0.0.1:8000.");
+    }
+    if (caught instanceof TypeError) {
+      throw new Error("Could not reach the backend. Please check that FastAPI is running on http://127.0.0.1:8000.");
+    }
+    throw caught;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const data = await response.json();
   if (!response.ok) {
@@ -45,6 +63,26 @@ export async function login(username: string, password: string) {
 
   storeAuth(data as AuthToken);
   return data as AuthToken;
+}
+
+export async function signupOwner(payload: OwnerSignupPayload) {
+  const response = await apiRequest<AuthToken>("/auth/owner-signup", {
+    method: "POST",
+    body: payload,
+  });
+  storeAuth(response);
+  return response;
+}
+
+export async function changeMyPassword(token: string, currentPassword: string, newPassword: string) {
+  return apiRequest<User>("/auth/me/password", {
+    method: "PUT",
+    token,
+    body: {
+      current_password: currentPassword,
+      new_password: newPassword,
+    },
+  });
 }
 
 export async function refreshCurrentUser(token: string) {

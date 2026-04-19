@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProtectedPage } from "@/components/layout/protected-page";
+import { StylistBookingCard } from "@/components/bookings/stylist-booking-card";
 import { Notice } from "@/components/ui/notice";
 import { apiRequest, todayInputValue } from "@/lib/api";
 import type { Booking } from "@/types/api";
@@ -24,23 +25,23 @@ function StylistHistory({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    async function loadHistory() {
-      setLoading(true);
-      setError("");
-      try {
-        const data = await apiRequest<Booking[]>(
-          `/stylist/me/booking-history?date_from=${dateFrom}&date_to=${dateTo}`,
-          { token },
-        );
-        setBookings(data);
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "Could not load booking history.");
-      } finally {
-        setLoading(false);
-      }
+  async function loadHistory() {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await apiRequest<Booking[]>(
+        `/stylist/me/booking-history?date_from=${dateFrom}&date_to=${dateTo}`,
+        { token },
+      );
+      setBookings(data);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not load booking history.");
+    } finally {
+      setLoading(false);
     }
+  }
 
+  useEffect(() => {
     loadHistory();
   }, [dateFrom, dateTo, token]);
 
@@ -70,19 +71,7 @@ function StylistHistory({ token }: { token: string }) {
           <div className="empty">No booking history for this range.</div>
         ) : (
           bookings.map((booking) => (
-            <div className="card" key={booking.id}>
-              <div className="row" style={{ justifyContent: "space-between" }}>
-                <strong>{booking.customer_name}</strong>
-                <span className="pill">{booking.status}</span>
-              </div>
-              <p>
-                {booking.service_name}, {new Date(booking.starts_at_utc).toLocaleString()}
-              </p>
-              <p className="muted">
-                {booking.customer_phone}
-                {booking.customer_email ? ` | ${booking.customer_email}` : ""}
-              </p>
-            </div>
+            <StylistBookingCard booking={booking} key={booking.id} onChanged={loadHistory} token={token} />
           ))
         )}
       </section>

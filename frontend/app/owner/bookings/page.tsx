@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProtectedPage } from "@/components/layout/protected-page";
 import { Notice } from "@/components/ui/notice";
-import { DEFAULT_SALON_ID, apiRequest, formatCurrency, formatTime, todayInputValue } from "@/lib/api";
+import { apiRequest, formatCurrency, formatTime, todayInputValue } from "@/lib/api";
+import { useOwnerSalon } from "@/lib/use-owner-salon";
 import type { AvailabilityResponse, AvailableSlot, Booking } from "@/types/api";
 
 function initialDateRange() {
@@ -46,13 +47,15 @@ function OwnerBookings({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const { salonId, loading: salonLoading, error: salonError } = useOwnerSalon(token);
 
   async function loadBookings() {
+    if (!salonId) return;
     setLoading(true);
     setError("");
     try {
       const data = await apiRequest<Booking[]>(
-        `/bookings?salon_id=${DEFAULT_SALON_ID}&date_from=${dateFrom}&date_to=${dateTo}`,
+        `/bookings?salon_id=${salonId}&date_from=${dateFrom}&date_to=${dateTo}`,
         { token },
       );
       setBookings(data);
@@ -65,7 +68,7 @@ function OwnerBookings({ token }: { token: string }) {
 
   useEffect(() => {
     loadBookings();
-  }, [dateFrom, dateTo, token]);
+  }, [dateFrom, dateTo, salonId, token]);
 
   function updateDateFrom(value: string) {
     setDateFrom(value);
@@ -97,12 +100,25 @@ function OwnerBookings({ token }: { token: string }) {
       return;
     }
 
-    await action(
-      `/bookings/${booking.id}/reschedule`,
-      "PUT",
-      { starts_at_utc: newSlot.starts_at_utc, notes: booking.notes },
-      "Booking rescheduled.",
-    );
+    setMessage("");
+    setError("");
+    try {
+      await apiRequest(`/bookings/${booking.id}/reschedule`, {
+        method: "PUT",
+        token,
+        body: { starts_at_utc: newSlot.starts_at_utc, notes: booking.notes },
+      });
+      setMessage("Booking rescheduled.");
+      setRescheduleSlotsById((current) => {
+        const next = { ...current };
+        delete next[booking.id];
+        return next;
+      });
+      setRescheduleSlotById((current) => ({ ...current, [booking.id]: undefined }));
+      await loadBookings();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not reschedule booking.");
+    }
   }
 
   async function loadRescheduleSlots(booking: Booking, targetDate = rescheduleDateById[booking.id] ?? booking.local_date) {
@@ -142,10 +158,10 @@ function OwnerBookings({ token }: { token: string }) {
             </div>
           </div>
         </section>
-        {error && <Notice kind="error">{error}</Notice>}
+        {(error || salonError) && <Notice kind="error">{error || salonError}</Notice>}
         {message && <Notice kind="success">{message}</Notice>}
         <section className="card stack section">
-          {loading ? (
+          {loading || salonLoading ? (
             <div className="loading">Loading bookings...</div>
           ) : bookings.length === 0 ? (
             <div className="empty">No bookings found for this range.</div>

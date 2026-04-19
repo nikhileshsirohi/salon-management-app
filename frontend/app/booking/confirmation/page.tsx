@@ -9,7 +9,7 @@ export default function BookingConfirmationPage() {
           <span className="eyebrow">Confirmed</span>
           <h1 className="page-title">Your appointment is booked.</h1>
           <p className="lead">We saved your appointment details.</p>
-          <Link className="button" href="/booking">
+          <Link className="button" href="/customer/booking">
             Book another appointment
           </Link>
         </div>

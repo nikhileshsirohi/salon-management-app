@@ -21,6 +21,7 @@ const ownerLinks = [
 
 const stylistLinks = [
   ["/stylist/dashboard", "Dashboard"],
+  ["/stylist/profile", "Profile"],
   ["/stylist/schedule", "Schedule"],
   ["/stylist/history", "History"],
   ["/stylist/walk-in", "Walk-in"],
@@ -60,7 +61,7 @@ export function AppShell({ area = "public", children }: AppShellProps) {
           <span>Salon Studio</span>
         </Link>
         <nav className="topnav">
-          <Link href="/booking">Book</Link>
+          <Link href="/customer/booking">Customer Booking</Link>
           {links.map(([href, label]) => (
             <Link href={href} key={href}>
               {label}

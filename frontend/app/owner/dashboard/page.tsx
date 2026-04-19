@@ -5,7 +5,8 @@ import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProtectedPage } from "@/components/layout/protected-page";
 import { Notice } from "@/components/ui/notice";
-import { DEFAULT_SALON_ID, apiRequest, formatCurrency, todayInputValue } from "@/lib/api";
+import { apiRequest, formatCurrency, todayInputValue } from "@/lib/api";
+import { useOwnerSalon } from "@/lib/use-owner-salon";
 import type { DashboardSummary } from "@/types/api";
 
 export default function OwnerDashboardPage() {
@@ -23,14 +24,16 @@ function OwnerDashboard({ token }: { token: string }) {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const { salon, salonId, loading: salonLoading, error: salonError } = useOwnerSalon(token);
 
   useEffect(() => {
     async function loadSummary() {
+      if (!salonId) return;
       setLoading(true);
       setError("");
       try {
         const data = await apiRequest<DashboardSummary>(
-          `/dashboard/summary?salon_id=${DEFAULT_SALON_ID}&date=${date}&upcoming_limit=6`,
+          `/dashboard/summary?salon_id=${salonId}&date=${date}&upcoming_limit=6`,
           { token },
         );
         setSummary(data);
@@ -42,7 +45,7 @@ function OwnerDashboard({ token }: { token: string }) {
     }
 
     loadSummary();
-  }, [date, token]);
+  }, [date, salonId, token]);
 
   return (
     <main className="page">
@@ -50,6 +53,7 @@ function OwnerDashboard({ token }: { token: string }) {
         <div>
           <span className="eyebrow">Owner dashboard</span>
           <h1 className="page-title">Today at a glance</h1>
+          {salon && <p className="lead">{salon.name}</p>}
         </div>
         <div className="field">
           <label>Dashboard date</label>
@@ -57,11 +61,21 @@ function OwnerDashboard({ token }: { token: string }) {
         </div>
       </section>
 
-      {error && <Notice kind="error">{error}</Notice>}
-      {loading && <div className="loading">Loading dashboard...</div>}
+      {(error || salonError) && <Notice kind="error">{error || salonError}</Notice>}
+      {(loading || salonLoading) && <div className="loading">Loading dashboard...</div>}
 
       {summary && !loading && (
         <>
+          <section className="visual-band section">
+            <img
+              alt="Salon styling stations"
+              src="https://images.unsplash.com/photo-1600948836101-f9ffda59d250?auto=format&fit=crop&w=1400&q=85"
+            />
+            <div className="visual-band-text">
+              <h2>{salon?.name ?? "Salon"} flow</h2>
+              <p>Bookings, payments, and stylist time stay connected through the day.</p>
+            </div>
+          </section>
           <section className="grid grid-3 section">
             <div className="card">
               <span className="eyebrow">Bookings</span>

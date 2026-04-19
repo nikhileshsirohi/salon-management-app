@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProtectedPage } from "@/components/layout/protected-page";
 import { Notice } from "@/components/ui/notice";
-import { DEFAULT_SALON_ID, apiRequest, formatCurrency, formatTime, todayInputValue } from "@/lib/api";
+import { apiRequest, formatCurrency, formatTime, todayInputValue } from "@/lib/api";
 import type { AvailabilityResponse, AvailableSlot, Service } from "@/types/api";
 
 export default function StylistWalkInPage() {
@@ -35,15 +35,15 @@ function StylistWalkIn({ token }: { token: string }) {
   useEffect(() => {
     async function loadServices() {
       try {
-        const data = await apiRequest<{ services: Service[] }>(`/public/services?salon_id=${DEFAULT_SALON_ID}`);
-        setServices(data.services);
-        setServiceId(data.services[0]?.id ?? null);
+        const data = await apiRequest<Service[]>("/stylist/me/services", { token });
+        setServices(data);
+        setServiceId(data[0]?.id ?? null);
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "Could not load services.");
       }
     }
     loadServices();
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     async function loadAvailability() {

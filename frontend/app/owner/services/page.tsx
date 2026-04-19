@@ -4,7 +4,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProtectedPage } from "@/components/layout/protected-page";
 import { Notice } from "@/components/ui/notice";
-import { DEFAULT_SALON_ID, apiRequest, formatCurrency } from "@/lib/api";
+import { apiRequest, formatCurrency } from "@/lib/api";
+import { useOwnerSalon } from "@/lib/use-owner-salon";
 import type { Service } from "@/types/api";
 
 type ServiceForm = {
@@ -41,12 +42,14 @@ function OwnerServices({ token }: { token: string }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const { salonId, loading: salonLoading, error: salonError } = useOwnerSalon(token);
 
   async function loadServices() {
+    if (!salonId) return;
     setLoading(true);
     setError("");
     try {
-      const data = await apiRequest<Service[]>(`/services?salon_id=${DEFAULT_SALON_ID}&include_inactive=true`, {
+      const data = await apiRequest<Service[]>(`/services?salon_id=${salonId}&include_inactive=true`, {
         token,
       });
       setServices(data);
@@ -59,7 +62,7 @@ function OwnerServices({ token }: { token: string }) {
 
   useEffect(() => {
     loadServices();
-  }, [token]);
+  }, [salonId, token]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -81,11 +84,15 @@ function OwnerServices({ token }: { token: string }) {
         });
         setMessage("Service updated.");
       } else {
+        if (!salonId) {
+          setError("Salon is still loading.");
+          return;
+        }
         await apiRequest<Service>("/services", {
           method: "POST",
           token,
           body: {
-            salon_id: DEFAULT_SALON_ID,
+            salon_id: salonId,
             name: form.name,
             description: form.description || null,
             duration_minutes: form.duration_minutes,
@@ -124,7 +131,7 @@ function OwnerServices({ token }: { token: string }) {
           <h1 className="page-title">Services</h1>
         </div>
       </section>
-      {error && <Notice kind="error">{error}</Notice>}
+      {(error || salonError) && <Notice kind="error">{error || salonError}</Notice>}
       {message && <Notice kind="success">{message}</Notice>}
       <div className="grid grid-2 section">
         <form className="card stack" onSubmit={submit}>
@@ -176,7 +183,7 @@ function OwnerServices({ token }: { token: string }) {
 
         <section className="card stack">
           <h2>Service list</h2>
-          {loading ? (
+          {loading || salonLoading ? (
             <div className="loading">Loading services...</div>
           ) : services.length === 0 ? (
             <div className="empty">No services yet.</div>

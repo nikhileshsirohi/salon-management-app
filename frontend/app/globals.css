@@ -21,7 +21,9 @@
 
 body {
   margin: 0;
-  background: var(--soft);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(246, 248, 247, 0.98)),
+    var(--soft);
   color: var(--ink);
   font-family: Arial, Helvetica, sans-serif;
   text-rendering: optimizeLegibility;
@@ -164,6 +166,7 @@ img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  animation: slowZoom 12s ease-in-out infinite alternate;
 }
 
 .section {
@@ -197,6 +200,7 @@ img {
   background: var(--paper);
   padding: 18px;
   box-shadow: 0 10px 30px rgba(23, 19, 18, 0.05);
+  animation: liftIn 0.28s ease both;
 }
 
 .select-card {
@@ -252,6 +256,23 @@ img {
   padding: 11px 12px;
 }
 
+.password-control {
+  position: relative;
+}
+
+.password-control input {
+  padding-right: 70px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .field textarea {
   min-height: 92px;
   resize: vertical;
@@ -268,6 +289,12 @@ img {
   color: white;
   padding: 10px 16px;
   font-weight: 800;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.button:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(23, 19, 18, 0.12);
 }
 
 .button.secondary {
@@ -368,6 +395,109 @@ img {
   color: #8f2637;
 }
 
+.visual-band {
+  position: relative;
+  min-height: 210px;
+  overflow: hidden;
+  border-radius: 8px;
+  isolation: isolate;
+}
+
+.visual-band img,
+.image-strip img,
+.booking-card-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.visual-band::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(90deg, rgba(23, 19, 18, 0.6), rgba(23, 19, 18, 0.08));
+}
+
+.visual-band-text {
+  position: absolute;
+  left: 22px;
+  bottom: 22px;
+  z-index: 2;
+  max-width: 540px;
+  color: white;
+}
+
+.visual-band-text h2,
+.visual-band-text p {
+  margin: 0;
+}
+
+.visual-band-text p {
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.image-strip {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr 1fr;
+  gap: 12px;
+}
+
+.image-strip img {
+  min-height: 150px;
+  border-radius: 8px;
+}
+
+.booking-card {
+  display: grid;
+  gap: 14px;
+}
+
+.booking-card-media {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.booking-card-media img {
+  min-height: 132px;
+  border-radius: 8px;
+}
+
+.action-row .button {
+  min-width: 112px;
+}
+
+.reschedule-panel {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+@keyframes liftIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slowZoom {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.05);
+  }
+}
+
 .loading,
 .empty {
   border: 1px dashed var(--line);
@@ -437,6 +567,11 @@ tr:last-child td {
   .grid-2,
   .grid-3,
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .image-strip,
+  .booking-card-media {
     grid-template-columns: 1fr;
   }
 

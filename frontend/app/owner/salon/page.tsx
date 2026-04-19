@@ -4,24 +4,33 @@ import { FormEvent, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProtectedPage } from "@/components/layout/protected-page";
 import { Notice } from "@/components/ui/notice";
-import { DEFAULT_SALON_ID, apiRequest, formatTime } from "@/lib/api";
-import type { OperatingHour, Salon } from "@/types/api";
+import { PasswordField } from "@/components/ui/password-field";
+import { apiRequest, formatTime } from "@/lib/api";
+import { changeMyPassword } from "@/lib/auth";
+import type { OperatingHour, Salon, User } from "@/types/api";
 
 const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const defaultOpenTime = "09:00:00";
+const defaultCloseTime = "18:00:00";
 
 export default function OwnerSalonPage() {
   return (
     <AppShell area="owner">
       <ProtectedPage role="owner">
-        {({ token }) => <OwnerSalon token={token} />}
+        {({ token, user }) => <OwnerSalon token={token} user={user} />}
       </ProtectedPage>
     </AppShell>
   );
 }
 
-function OwnerSalon({ token }: { token: string }) {
+function OwnerSalon({ token, user }: { token: string; user: User }) {
   const [salon, setSalon] = useState<Salon | null>(null);
   const [hours, setHours] = useState<OperatingHour[]>([]);
+  const [passwordForm, setPasswordForm] = useState({
+    current_password: "",
+    new_password: "",
+    confirm_password: "",
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -32,10 +41,8 @@ function OwnerSalon({ token }: { token: string }) {
       setLoading(true);
       setError("");
       try {
-        const [salonData, hoursData] = await Promise.all([
-          apiRequest<Salon>(`/salon/${DEFAULT_SALON_ID}`, { token }),
-          apiRequest<OperatingHour[]>(`/salon/${DEFAULT_SALON_ID}/operating-hours`, { token }),
-        ]);
+        const salonData = await apiRequest<Salon>("/salon/me/current", { token });
+        const hoursData = await apiRequest<OperatingHour[]>(`/salon/${salonData.id}/operating-hours`, { token });
         setSalon(salonData);
         setHours(hoursData);
       } catch (caught) {
@@ -55,7 +62,7 @@ function OwnerSalon({ token }: { token: string }) {
     setMessage("");
     setError("");
     try {
-      const updated = await apiRequest<Salon>(`/salon/${DEFAULT_SALON_ID}`, {
+      const updated = await apiRequest<Salon>(`/salon/${salon.id}`, {
         method: "PUT",
         token,
         body: {
@@ -80,14 +87,15 @@ function OwnerSalon({ token }: { token: string }) {
     setMessage("");
     setError("");
     try {
-      const updated = await apiRequest<OperatingHour[]>(`/salon/${DEFAULT_SALON_ID}/operating-hours`, {
+      if (!salon) return;
+      const updated = await apiRequest<OperatingHour[]>(`/salon/${salon.id}/operating-hours`, {
         method: "PUT",
         token,
         body: {
           hours: hours.map((hour) => ({
             day_of_week: hour.day_of_week,
-            opens_at: hour.is_closed ? null : hour.opens_at,
-            closes_at: hour.is_closed ? null : hour.closes_at,
+            opens_at: hour.is_closed ? null : hour.opens_at ?? defaultOpenTime,
+            closes_at: hour.is_closed ? null : hour.closes_at ?? defaultCloseTime,
             is_closed: hour.is_closed,
           })),
         },
@@ -101,9 +109,40 @@ function OwnerSalon({ token }: { token: string }) {
     }
   }
 
+  async function savePassword(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    setError("");
+    if (passwordForm.new_password !== passwordForm.confirm_password) {
+      setError("New password and confirm password must match.");
+      setSaving(false);
+      return;
+    }
+    try {
+      await changeMyPassword(token, passwordForm.current_password, passwordForm.new_password);
+      setPasswordForm({ current_password: "", new_password: "", confirm_password: "" });
+      setMessage("Password changed.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not change password.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function updateHour(day: number, patch: Partial<OperatingHour>) {
     setHours((current) =>
-      current.map((hour) => (hour.day_of_week === day ? { ...hour, ...patch } : hour)),
+      current.map((hour) => {
+        if (hour.day_of_week !== day) return hour;
+
+        const nextHour = { ...hour, ...patch };
+        if (patch.is_closed === false) {
+          nextHour.opens_at = nextHour.opens_at ?? defaultOpenTime;
+          nextHour.closes_at = nextHour.closes_at ?? defaultCloseTime;
+        }
+
+        return nextHour;
+      }),
     );
   }
 
@@ -120,40 +159,74 @@ function OwnerSalon({ token }: { token: string }) {
       {message && <Notice kind="success">{message}</Notice>}
       {salon && (
         <div className="grid grid-2 section">
-          <form className="card stack" onSubmit={saveSalon}>
-            <h2>Salon profile</h2>
-            <div className="field">
-              <label>Name</label>
-              <input value={salon.name} onChange={(event) => setSalon({ ...salon, name: event.target.value })} />
-            </div>
-            <div className="field">
-              <label>Address</label>
-              <input value={salon.address ?? ""} onChange={(event) => setSalon({ ...salon, address: event.target.value })} />
-            </div>
-            <div className="form-grid">
-              <div className="field">
-                <label>Phone</label>
-                <input value={salon.phone ?? ""} onChange={(event) => setSalon({ ...salon, phone: event.target.value })} />
-              </div>
-              <div className="field">
-                <label>Timezone</label>
-                <input value={salon.timezone} onChange={(event) => setSalon({ ...salon, timezone: event.target.value })} />
-              </div>
-            </div>
-            <div className="field">
-              <label>Default slot duration</label>
-              <input
-                type="number"
-                value={salon.default_slot_duration_minutes}
-                onChange={(event) =>
-                  setSalon({ ...salon, default_slot_duration_minutes: Number(event.target.value) })
-                }
+          <div className="stack">
+            <section className="card stack">
+              <h2>Owner profile</h2>
+              <p className="muted">{user.email}</p>
+            </section>
+            <form className="card stack" onSubmit={savePassword}>
+              <h2>Change password</h2>
+              <PasswordField
+                label="Current password"
+                required
+                value={passwordForm.current_password}
+                onChange={(value) => setPasswordForm({ ...passwordForm, current_password: value })}
               />
-            </div>
-            <button className="button" disabled={saving} type="submit">
-              Save salon
-            </button>
-          </form>
+              <div className="form-grid">
+                <PasswordField
+                  label="New password"
+                  minLength={8}
+                  required
+                  value={passwordForm.new_password}
+                  onChange={(value) => setPasswordForm({ ...passwordForm, new_password: value })}
+                />
+                <PasswordField
+                  label="Confirm new password"
+                  minLength={8}
+                  required
+                  value={passwordForm.confirm_password}
+                  onChange={(value) => setPasswordForm({ ...passwordForm, confirm_password: value })}
+                />
+              </div>
+              <button className="button" disabled={saving} type="submit">
+                Save password
+              </button>
+            </form>
+            <form className="card stack" onSubmit={saveSalon}>
+              <h2>Salon profile</h2>
+              <div className="field">
+                <label>Name</label>
+                <input value={salon.name} onChange={(event) => setSalon({ ...salon, name: event.target.value })} />
+              </div>
+              <div className="field">
+                <label>Address</label>
+                <input value={salon.address ?? ""} onChange={(event) => setSalon({ ...salon, address: event.target.value })} />
+              </div>
+              <div className="form-grid">
+                <div className="field">
+                  <label>Phone</label>
+                  <input value={salon.phone ?? ""} onChange={(event) => setSalon({ ...salon, phone: event.target.value })} />
+                </div>
+                <div className="field">
+                  <label>Timezone</label>
+                  <input value={salon.timezone} onChange={(event) => setSalon({ ...salon, timezone: event.target.value })} />
+                </div>
+              </div>
+              <div className="field">
+                <label>Default slot duration</label>
+                <input
+                  type="number"
+                  value={salon.default_slot_duration_minutes}
+                  onChange={(event) =>
+                    setSalon({ ...salon, default_slot_duration_minutes: Number(event.target.value) })
+                  }
+                />
+              </div>
+              <button className="button" disabled={saving} type="submit">
+                Save salon
+              </button>
+            </form>
+          </div>
 
           <section className="card stack">
             <h2>Operating hours</h2>
@@ -176,7 +249,7 @@ function OwnerSalon({ token }: { token: string }) {
                       <label>Opens</label>
                       <input
                         type="time"
-                        value={formatTime(hour.opens_at ?? "09:00:00")}
+                        value={formatTime(hour.opens_at ?? defaultOpenTime)}
                         onChange={(event) => updateHour(hour.day_of_week, { opens_at: `${event.target.value}:00` })}
                       />
                     </div>
@@ -184,7 +257,7 @@ function OwnerSalon({ token }: { token: string }) {
                       <label>Closes</label>
                       <input
                         type="time"
-                        value={formatTime(hour.closes_at ?? "18:00:00")}
+                        value={formatTime(hour.closes_at ?? defaultCloseTime)}
                         onChange={(event) => updateHour(hour.day_of_week, { closes_at: `${event.target.value}:00` })}
                       />
                     </div>

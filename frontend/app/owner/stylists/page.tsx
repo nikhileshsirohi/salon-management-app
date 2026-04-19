@@ -4,7 +4,9 @@ import { FormEvent, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProtectedPage } from "@/components/layout/protected-page";
 import { Notice } from "@/components/ui/notice";
-import { DEFAULT_SALON_ID, apiRequest, formatTime } from "@/lib/api";
+import { PasswordField } from "@/components/ui/password-field";
+import { apiRequest, formatTime } from "@/lib/api";
+import { useOwnerSalon } from "@/lib/use-owner-salon";
 import type { Stylist, StylistAvailability } from "@/types/api";
 
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -13,6 +15,7 @@ type StylistForm = {
   name: string;
   email: string;
   password: string;
+  confirm_password: string;
   phone: string;
   bio: string;
   profile_photo_url: string;
@@ -22,7 +25,8 @@ type StylistForm = {
 const emptyStylist: StylistForm = {
   name: "",
   email: "",
-  password: "password123",
+  password: "",
+  confirm_password: "",
   phone: "",
   bio: "",
   profile_photo_url: "",
@@ -44,16 +48,27 @@ function OwnerStylists({ token }: { token: string }) {
   const [selected, setSelected] = useState<Stylist | null>(null);
   const [availability, setAvailability] = useState<StylistAvailability[]>([]);
   const [form, setForm] = useState(emptyStylist);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    phone: "",
+    bio: "",
+    profile_photo_url: "",
+    specialties: "",
+    password: "",
+    confirm_password: "",
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const { salonId, loading: salonLoading, error: salonError } = useOwnerSalon(token);
 
   async function loadStylists() {
+    if (!salonId) return;
     setLoading(true);
     setError("");
     try {
-      const data = await apiRequest<Stylist[]>(`/stylists?salon_id=${DEFAULT_SALON_ID}&include_inactive=true`, {
+      const data = await apiRequest<Stylist[]>(`/stylists?salon_id=${salonId}&include_inactive=true`, {
         token,
       });
       setStylists(data);
@@ -67,7 +82,7 @@ function OwnerStylists({ token }: { token: string }) {
 
   useEffect(() => {
     loadStylists();
-  }, [token]);
+  }, [salonId, token]);
 
   useEffect(() => {
     async function loadAvailability() {
@@ -82,17 +97,38 @@ function OwnerStylists({ token }: { token: string }) {
     loadAvailability();
   }, [selected, token]);
 
+  useEffect(() => {
+    if (!selected) return;
+    setEditForm({
+      name: selected.name,
+      phone: selected.phone ?? "",
+      bio: selected.bio ?? "",
+      profile_photo_url: selected.profile_photo_url ?? "",
+      specialties: selected.specialties.join(", "),
+      password: "",
+      confirm_password: "",
+    });
+  }, [selected]);
+
   async function createStylist(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     setMessage("");
     setError("");
     try {
+      if (!salonId) {
+        setError("Salon is still loading.");
+        return;
+      }
+      if (form.password !== form.confirm_password) {
+        setError("Password and confirm password must match.");
+        return;
+      }
       await apiRequest<Stylist>("/stylists", {
         method: "POST",
         token,
         body: {
-          salon_id: DEFAULT_SALON_ID,
+          salon_id: salonId,
           email: form.email,
           password: form.password,
           name: form.name,
@@ -125,6 +161,43 @@ function OwnerStylists({ token }: { token: string }) {
       await loadStylists();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not deactivate stylist.");
+    }
+  }
+
+  async function updateSelectedStylist(event: FormEvent) {
+    event.preventDefault();
+    if (!selected) return;
+    setSaving(true);
+    setMessage("");
+    setError("");
+    try {
+      if (editForm.password && editForm.password !== editForm.confirm_password) {
+        setError("Password and confirm password must match.");
+        return;
+      }
+
+      const updated = await apiRequest<Stylist>(`/stylists/${selected.id}`, {
+        method: "PUT",
+        token,
+        body: {
+          name: editForm.name,
+          phone: editForm.phone || null,
+          bio: editForm.bio || null,
+          profile_photo_url: editForm.profile_photo_url || null,
+          specialties: editForm.specialties
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean),
+          ...(editForm.password ? { password: editForm.password } : {}),
+        },
+      });
+      setSelected(updated);
+      setMessage("Stylist profile saved.");
+      await loadStylists();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not update stylist.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -188,7 +261,7 @@ function OwnerStylists({ token }: { token: string }) {
           <h1 className="page-title">Stylists</h1>
         </div>
       </section>
-      {error && <Notice kind="error">{error}</Notice>}
+      {(error || salonError) && <Notice kind="error">{error || salonError}</Notice>}
       {message && <Notice kind="success">{message}</Notice>}
 
       <div className="grid grid-2 section">
@@ -206,14 +279,24 @@ function OwnerStylists({ token }: { token: string }) {
               </div>
             </div>
             <div className="form-grid">
-              <div className="field">
-                <label>Password</label>
-                <input value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} type="password" />
-              </div>
-              <div className="field">
-                <label>Phone</label>
-                <input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
-              </div>
+              <PasswordField
+                label="Password"
+                minLength={8}
+                required
+                value={form.password}
+                onChange={(value) => setForm({ ...form, password: value })}
+              />
+              <PasswordField
+                label="Confirm password"
+                minLength={8}
+                required
+                value={form.confirm_password}
+                onChange={(value) => setForm({ ...form, confirm_password: value })}
+              />
+            </div>
+            <div className="field">
+              <label>Phone</label>
+              <input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
             </div>
             <div className="field">
               <label>Profile photo URL</label>
@@ -234,7 +317,7 @@ function OwnerStylists({ token }: { token: string }) {
 
           <section className="card stack">
             <h2>Stylist list</h2>
-            {loading ? (
+            {loading || salonLoading ? (
               <div className="loading">Loading stylists...</div>
             ) : stylists.length === 0 ? (
               <div className="empty">No stylists yet.</div>
@@ -280,7 +363,57 @@ function OwnerStylists({ token }: { token: string }) {
         </div>
 
         {selected && (
-        <section className="card stack sticky-panel">
+        <div className="stack sticky-panel">
+        <form className="card stack" onSubmit={updateSelectedStylist}>
+          <div>
+            <h2>{selected.name} profile</h2>
+            <p className="muted">Email cannot be changed: {selected.email}</p>
+          </div>
+          <div className="form-grid">
+            <div className="field">
+              <label>Name</label>
+              <input value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} />
+            </div>
+            <div className="field">
+              <label>Phone</label>
+              <input value={editForm.phone} onChange={(event) => setEditForm({ ...editForm, phone: event.target.value })} />
+            </div>
+          </div>
+          <div className="field">
+            <label>Profile photo URL</label>
+            <input
+              value={editForm.profile_photo_url}
+              onChange={(event) => setEditForm({ ...editForm, profile_photo_url: event.target.value })}
+            />
+          </div>
+          <div className="field">
+            <label>Specialties, comma separated</label>
+            <input value={editForm.specialties} onChange={(event) => setEditForm({ ...editForm, specialties: event.target.value })} />
+          </div>
+          <div className="field">
+            <label>Bio</label>
+            <textarea value={editForm.bio} onChange={(event) => setEditForm({ ...editForm, bio: event.target.value })} />
+          </div>
+          <div className="form-grid">
+            <PasswordField
+              label="New password"
+              minLength={8}
+              value={editForm.password}
+              onChange={(value) => setEditForm({ ...editForm, password: value })}
+              placeholder="Leave blank to keep current password"
+            />
+            <PasswordField
+              label="Confirm new password"
+              minLength={8}
+              value={editForm.confirm_password}
+              onChange={(value) => setEditForm({ ...editForm, confirm_password: value })}
+            />
+          </div>
+          <button className="button" disabled={saving} type="submit">
+            Save profile
+          </button>
+        </form>
+        <section className="card stack">
           <div className="section-header">
             <div>
               <h2>{selected.name} availability</h2>
@@ -346,6 +479,7 @@ function OwnerStylists({ token }: { token: string }) {
             Save availability
           </button>
         </section>
+        </div>
         )}
       </div>
     </main>

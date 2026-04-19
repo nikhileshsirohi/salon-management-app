@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getStoredToken, refreshCurrentUser } from "@/lib/auth";
+import { ApiError } from "@/lib/api";
+import { clearAuth, getStoredToken, refreshCurrentUser } from "@/lib/auth";
 import type { User, UserRole } from "@/types/api";
 import { Notice } from "@/components/ui/notice";
 
@@ -35,13 +36,32 @@ export function ProtectedPage({ role, children }: ProtectedPageProps) {
           router.replace(destination);
         }
       })
-      .catch(() => {
-        router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+      .catch((caught) => {
+        setToken(null);
+        setUser(null);
+        if (caught instanceof ApiError && caught.status === 401) {
+          clearAuth();
+          router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+          return;
+        }
+        setError(caught instanceof Error ? caught.message : "Could not check your session.");
       });
   }, [role, router]);
 
+  function goToLogin() {
+    clearAuth();
+    router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+  }
+
   if (error) {
-    return <Notice kind="error">{error}</Notice>;
+    return (
+      <Notice kind="error">
+        {error}{" "}
+        <button className="text-button" onClick={goToLogin} type="button">
+          Login again
+        </button>
+      </Notice>
+    );
   }
 
   if (!token || !user) {

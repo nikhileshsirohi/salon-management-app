@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1";
 
 export const DEFAULT_SALON_ID = Number(process.env.NEXT_PUBLIC_DEFAULT_SALON_ID ?? "1");
 
@@ -17,10 +17,13 @@ type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
   token?: string | null;
+  timeoutMs?: number;
 };
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const headers: HeadersInit = {};
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 10000);
 
   if (options.body !== undefined) {
     headers["Content-Type"] = "application/json";
@@ -30,11 +33,26 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     headers.Authorization = `Bearer ${options.token}`;
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    method: options.method ?? "GET",
-    headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      method: options.method ?? "GET",
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      signal: controller.signal,
+    });
+  } catch (caught) {
+    if (caught instanceof DOMException && caught.name === "AbortError") {
+      throw new Error("Backend did not respond. Please check that FastAPI is running.");
+    }
+    if (caught instanceof TypeError) {
+      throw new Error("Could not reach the backend. Please check that FastAPI is running on http://127.0.0.1:8000.");
+    }
+    throw caught;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const text = await response.text();
   const data = text ? JSON.parse(text) : null;
