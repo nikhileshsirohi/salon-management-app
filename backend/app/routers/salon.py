@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -20,6 +20,10 @@ router = APIRouter()
 @router.get("/status")
 def salon_status() -> dict[str, str]:
     return {"module": "salon", "status": "ready"}
+
+
+def get_owner_salon(db: Session, owner: User) -> Salon | None:
+    return db.scalar(select(Salon).where(Salon.owner_user_id == owner.id))
 
 
 def closed_day(salon_id: int, day_of_week: int) -> OperatingHourRead:
@@ -44,6 +48,20 @@ def to_operating_hour_read(hour: SalonOperatingHour) -> OperatingHourRead:
             "is_closed": hour.is_closed,
         }
     )
+
+
+@router.get("/me/current", response_model=SalonRead)
+def get_my_salon(
+    db: Session = Depends(get_db),
+    owner: User = Depends(get_current_owner),
+) -> Salon:
+    salon = get_owner_salon(db, owner)
+    if salon is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Salon not found for this owner",
+        )
+    return salon
 
 
 @router.get("/{salon_id}", response_model=SalonRead)

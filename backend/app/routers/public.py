@@ -17,6 +17,8 @@ from app.schemas.public import (
     AvailableSlotRead,
     PublicBookingCreate,
     PublicBookingRead,
+    PublicSalonRead,
+    PublicSalonsRead,
     PublicServicesRead,
     PublicStylistsRead,
 )
@@ -186,6 +188,23 @@ def calculate_available_slots(
             slot_start += slot_step
 
     return slots
+
+
+@router.get("/salons", response_model=PublicSalonsRead)
+def list_public_salons(db: Session = Depends(get_db)) -> PublicSalonsRead:
+    salons = db.scalars(select(Salon).order_by(Salon.name)).all()
+    return PublicSalonsRead(
+        salons=[
+            PublicSalonRead(
+                id=salon.id,
+                name=salon.name,
+                address=salon.address,
+                phone=salon.phone,
+                timezone=salon.timezone,
+            )
+            for salon in salons
+        ]
+    )
 
 
 @router.get("/services", response_model=PublicServicesRead)

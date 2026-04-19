@@ -23,6 +23,15 @@ class StylistUpdate(BaseModel):
     profile_photo_url: str | None = Field(default=None, max_length=1000)
     is_active: bool | None = None
     specialties: list[str] | None = None
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+
+
+class StylistSelfUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    phone: str | None = None
+    bio: str | None = None
+    profile_photo_url: str | None = Field(default=None, max_length=1000)
+    specialties: list[str] | None = None
 
 
 class StylistRead(StylistBase):

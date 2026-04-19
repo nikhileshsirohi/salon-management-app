@@ -31,6 +31,18 @@ class PublicStylistsRead(BaseModel):
     stylists: list[StylistRead]
 
 
+class PublicSalonRead(BaseModel):
+    id: int
+    name: str
+    address: str | None = None
+    phone: str | None = None
+    timezone: str
+
+
+class PublicSalonsRead(BaseModel):
+    salons: list[PublicSalonRead]
+
+
 class PublicBookingCreate(BaseModel):
     stylist_id: int
     service_id: int

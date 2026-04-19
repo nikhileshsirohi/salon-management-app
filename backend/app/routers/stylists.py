@@ -197,12 +197,27 @@ def update_stylist(
 ) -> StylistRead:
     stylist = get_owned_stylist(stylist_id, db, owner)
 
-    update_data = payload.model_dump(exclude_unset=True, exclude={"specialties"})
+    update_data = payload.model_dump(exclude_unset=True, exclude={"specialties", "password"})
     for field_name, value in update_data.items():
         setattr(stylist, field_name, value)
 
     if payload.specialties is not None:
         replace_specialties(db, stylist.id, payload.specialties)
+
+    if payload.password:
+        if stylist.user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Stylist does not have a login account",
+            )
+        stylist_user = db.get(User, stylist.user_id)
+        if stylist_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Stylist login account not found",
+            )
+        stylist_user.password_hash = get_password_hash(payload.password)
+        db.add(stylist_user)
 
     db.add(stylist)
     db.commit()
