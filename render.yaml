@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: salon-management-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: bash scripts/start.sh
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: PROJECT_NAME
+        value: Salon Management App API
+      - key: API_V1_PREFIX
+        value: /api/v1
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "10080"
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: BACKEND_CORS_ORIGINS
+        sync: false
