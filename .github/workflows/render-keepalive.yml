@@ -3,42 +3,18 @@ name: Render keepalive
 on:
   workflow_dispatch:
   schedule:
-    # GitHub cron runs in UTC. These windows map to 09:00-23:59 Asia/Kolkata.
-    - cron: "*/5 * * * *"  
+    - cron: "*/5 * * * *"
 
 jobs:
   ping:
     runs-on: ubuntu-latest
-    env:
-      HEALTH_URL: ${{ secrets.RENDER_HEALTH_URL || vars.RENDER_HEALTH_URL }}
-      END_DATE_IST: "2026-05-01"
-      TZ: Asia/Kolkata
     steps:
-      - name: Check one-week demo window
-        id: window
-        run: |
-          today="$(date +%F)"
-          hour="$(date +%H)"
-
-          if [[ "$today" > "$END_DATE_IST" ]]; then
-            echo "active=false" >> "$GITHUB_OUTPUT"
-            echo "Keepalive ended on $END_DATE_IST IST."
-            exit 0
-          fi
-
-          if (( 10#$hour < 9 )); then
-            echo "active=false" >> "$GITHUB_OUTPUT"
-            echo "Night window is active. Skipping ping."
-            exit 0
-          fi
-
-          echo "active=true" >> "$GITHUB_OUTPUT"
-
       - name: Ping Render health endpoint
-        if: steps.window.outputs.active == 'true'
+        env:
+          HEALTH_URL: ${{ secrets.RENDER_HEALTH_URL }}
         run: |
           if [[ -z "$HEALTH_URL" ]]; then
-            echo "Set RENDER_HEALTH_URL as a repository secret or variable."
+            echo "Set RENDER_HEALTH_URL as a repository secret."
             exit 1
           fi
 
