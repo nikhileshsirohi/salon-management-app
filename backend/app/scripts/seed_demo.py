@@ -1,9 +1,12 @@
+import argparse
 from datetime import time
 from decimal import Decimal
 
 from sqlalchemy import select
+from sqlalchemy import text
 
-from app.core.database import SessionLocal
+from app import models  # noqa: F401 - register all tables on Base.metadata for reset mode
+from app.core.database import Base, SessionLocal
 from app.core.security import get_password_hash
 from app.models.availability import SalonOperatingHour, StylistAvailability
 from app.models.salon import Salon
@@ -182,6 +185,16 @@ def _ensure_stylists(db, salon_id: int) -> None:
             )
 
 
+def reset_database_data(db) -> None:
+    tables = list(reversed(Base.metadata.sorted_tables))
+    if not tables:
+        return
+
+    preparer = db.get_bind().dialect.identifier_preparer
+    table_names = ", ".join(preparer.format_table(table) for table in tables)
+    db.execute(text(f"TRUNCATE TABLE {table_names} RESTART IDENTITY CASCADE"))
+
+
 def seed_demo_data() -> None:
     db = SessionLocal()
     try:
@@ -217,5 +230,26 @@ def seed_demo_data() -> None:
         db.close()
 
 
-if __name__ == "__main__":
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Seed the Maison Salon demo data.")
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Clear all app data and restart identities before seeding.",
+    )
+    args = parser.parse_args()
+
+    if args.reset:
+        db = SessionLocal()
+        try:
+            reset_database_data(db)
+            db.commit()
+            print("— Existing salon app data cleared —")
+        finally:
+            db.close()
+
     seed_demo_data()
+
+
+if __name__ == "__main__":
+    main()
