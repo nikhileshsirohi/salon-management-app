@@ -28,7 +28,7 @@ const visuals: Record<
     alt: "Salon admin console overlooking the styling floor",
     quote:
       "The calmest mornings I've had running a studio—every booking and payment in one place.",
-    attribution: "Studio admin, North Lane",
+    attribution: "Studio admin, Bandra",
   },
   stylist: {
     image:
@@ -41,9 +41,9 @@ const visuals: Record<
   default: {
     image:
       "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=1200&q=80",
-    alt: "Maison Salon reception",
-    quote: "Sanctuary-style studio meets quietly powerful software.",
-    attribution: "Maison Salon",
+    alt: "Aaranya Salon reception",
+    quote: "A calm Indian studio meets quietly powerful software.",
+    attribution: "Aaranya Salon",
   },
 };
 
@@ -94,13 +94,13 @@ export function LoginForm({ expectedRole }: LoginFormProps) {
       ? "Admin sign-in"
       : expectedRole === "stylist"
         ? "Stylist sign-in"
-        : "Sign in to Maison";
+        : "Sign in to Aaranya";
   const description =
     expectedRole === "admin"
       ? "Open the console to manage services, stylists, hours, bookings, and payments."
       : expectedRole === "stylist"
         ? "Step into your workday—schedule, walk-ins, and booking history, in one serene place."
-        : "One set of credentials. Maison reads your role and opens the right studio for you.";
+        : "One set of credentials. Aaranya reads your role and opens the right studio for you.";
 
   return (
     <AppShell>
@@ -110,7 +110,7 @@ export function LoginForm({ expectedRole }: LoginFormProps) {
             <img alt={visual.alt} src={visual.image} />
             <div className="auth-visual-text">
               <span className="eyebrow" style={{ color: "var(--gold-soft)" }}>
-                Maison Salon
+                Aaranya Salon
               </span>
               <p className="quote">&ldquo;{visual.quote}&rdquo;</p>
               <span style={{ opacity: 0.8, fontSize: 13 }}>— {visual.attribution}</span>
@@ -162,7 +162,7 @@ export function LoginForm({ expectedRole }: LoginFormProps) {
             {expectedRole === "admin" ? (
               <div className="row" style={{ justifyContent: "space-between" }}>
                 <span className="muted" style={{ fontSize: 13 }}>
-                  Admin accounts are provisioned by the Maison team.
+                  Admin accounts are provisioned by the Aaranya team.
                 </span>
                 <Link className="muted" href="/stylist/login">
                   Stylist sign-in →

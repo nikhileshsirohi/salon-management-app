@@ -1,6 +1,7 @@
 import type { Booking, Salon } from "@/types/api";
 
-const STORAGE_KEY = "maison-booking-confirmation";
+const STORAGE_KEY = "aaranya-booking-confirmation";
+const LEGACY_STORAGE_KEYS = ["maison-booking-confirmation"];
 // Anything older than this is treated as stale, so a refresh tomorrow doesn't
 // resurrect yesterday's confirmation.
 const FRESHNESS_WINDOW_MS = 30 * 60 * 1000;
@@ -34,9 +35,16 @@ export function storeBookingConfirmation(payload: BookingConfirmationPayload): v
 export function readBookingConfirmation(): BookingConfirmationPayload | null {
   if (typeof window === "undefined") return null;
   try {
+    for (const key of LEGACY_STORAGE_KEYS) {
+      sessionStorage.removeItem(key);
+    }
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const stored = JSON.parse(raw) as StoredPayload;
+    if (stored.salon?.name?.includes("Maison")) {
+      sessionStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
     if (
       typeof stored._storedAt === "number" &&
       Date.now() - stored._storedAt > FRESHNESS_WINDOW_MS
@@ -85,7 +93,7 @@ function escapeIcsText(value: string): string {
 export function buildIcsEvent(payload: BookingConfirmationPayload): string {
   const { booking, salon, stylistName, services } = payload;
   const serviceLabel = services.map((s) => s.name).join(" + ") || "Salon appointment";
-  const summary = `${serviceLabel} @ ${salon?.name ?? "Maison Salon"}`;
+  const summary = `${serviceLabel} @ ${salon?.name ?? "Aaranya Salon"}`;
   const descriptionParts = [
     `Services: ${services.map((s) => `${s.name} (${s.duration_minutes} min)`).join(", ")}`,
     stylistName ? `Stylist: ${stylistName}` : "",
@@ -95,13 +103,13 @@ export function buildIcsEvent(payload: BookingConfirmationPayload): string {
   ].filter(Boolean);
   const description = descriptionParts.join("\\n");
   const location = [salon?.name, salon?.address].filter(Boolean).join(", ");
-  const uid = `maison-booking-${booking.id}@maison-salon.local`;
+  const uid = `aaranya-booking-${booking.id}@aaranya-salon.local`;
   const now = formatIcsDate(new Date().toISOString());
 
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Maison Salon//Booking//EN",
+    "PRODID:-//Aaranya Salon//Booking//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",
@@ -123,7 +131,7 @@ export function buildIcsEvent(payload: BookingConfirmationPayload): string {
 export function buildGoogleCalendarUrl(payload: BookingConfirmationPayload): string {
   const { booking, salon, stylistName, services } = payload;
   const serviceLabel = services.map((s) => s.name).join(" + ") || "Salon appointment";
-  const title = `${serviceLabel} @ ${salon?.name ?? "Maison Salon"}`;
+  const title = `${serviceLabel} @ ${salon?.name ?? "Aaranya Salon"}`;
   const details = [
     `Services: ${services.map((s) => `${s.name} (${s.duration_minutes} min)`).join(", ")}`,
     stylistName ? `Stylist: ${stylistName}` : "",
@@ -151,7 +159,7 @@ export function downloadIcsFile(payload: BookingConfirmationPayload): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `maison-salon-booking-${payload.booking.id}.ics`;
+  link.download = `aaranya-salon-booking-${payload.booking.id}.ics`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

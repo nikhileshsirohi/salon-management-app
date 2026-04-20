@@ -3,6 +3,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.core.phone import normalize_phone_number
+
 
 class SalonBase(BaseModel):
     name: str = Field(min_length=1, max_length=255)
@@ -13,6 +15,8 @@ class SalonBase(BaseModel):
 
     @model_validator(mode="after")
     def validate_timezone(self) -> "SalonBase":
+        if self.phone is not None:
+            self.phone = normalize_phone_number(self.phone)
         try:
             ZoneInfo(self.timezone)
         except ZoneInfoNotFoundError as error:
@@ -29,6 +33,8 @@ class SalonUpdate(BaseModel):
 
     @model_validator(mode="after")
     def validate_timezone(self) -> "SalonUpdate":
+        if self.phone is not None:
+            self.phone = normalize_phone_number(self.phone)
         if self.timezone is None:
             return self
 

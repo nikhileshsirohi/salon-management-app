@@ -3,8 +3,8 @@
 Example:
     python -m app.scripts.create_admin \
         --email admin@example.com --password "s3cret!" \
-        --salon-name "Maison Salon — SoMa" \
-        --timezone "America/Los_Angeles"
+        --salon-name "Aaranya Salon - Bandra" \
+        --timezone "Asia/Kolkata"
 
 Admin accounts are intentionally not exposed via a public signup endpoint —
 use this script (or the seed_demo script) to create them.
@@ -19,6 +19,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy import select
 
 from app.core.database import SessionLocal
+from app.core.phone import normalize_phone_number
 from app.core.security import get_password_hash
 from app.models.salon import Salon
 from app.models.user import User, UserRole
@@ -61,7 +62,7 @@ def create_admin(
             admin_user_id=admin.id,
             name=salon_name,
             address=salon_address,
-            phone=salon_phone,
+            phone=normalize_phone_number(salon_phone),
             timezone=timezone,
             default_slot_duration_minutes=slot_duration,
         )

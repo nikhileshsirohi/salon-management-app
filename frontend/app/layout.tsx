@@ -17,9 +17,9 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Maison Salon — Premium booking & management",
+  title: "Aaranya Salon — Premium booking & management",
   description:
-    "A modern boutique salon experience. Book refined cuts, color, and care with trusted stylists.",
+    "A modern boutique salon experience. Book refined cuts, colour, and care with trusted stylists.",
 };
 
 export default function RootLayout({

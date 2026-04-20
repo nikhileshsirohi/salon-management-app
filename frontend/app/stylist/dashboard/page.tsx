@@ -7,13 +7,8 @@ import { StylistBookingCard } from "@/components/bookings/stylist-booking-card";
 import { ProtectedPage } from "@/components/layout/protected-page";
 import { Notice } from "@/components/ui/notice";
 import { apiRequest, todayInputValue } from "@/lib/api";
+import { weekDateRange } from "@/lib/date-range";
 import type { Booking, Salon } from "@/types/api";
-
-function addDays(value: string, days: number) {
-  const date = new Date(`${value}T00:00:00`);
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
-}
 
 export default function StylistDashboardPage() {
   return (
@@ -37,10 +32,13 @@ function StylistDashboard({ token, email }: { token: string; email: string }) {
     setLoading(true);
     setError("");
     try {
-      const weekEnd = addDays(date, 6);
+      const weekRange = weekDateRange(date);
       const [dayData, weekData] = await Promise.all([
         apiRequest<Booking[]>(`/stylist/me/schedule?date=${date}`, { token }),
-        apiRequest<Booking[]>(`/stylist/me/booking-history?date_from=${date}&date_to=${weekEnd}`, { token }),
+        apiRequest<Booking[]>(
+          `/stylist/me/booking-history?date_from=${weekRange.dateFrom}&date_to=${weekRange.dateTo}`,
+          { token },
+        ),
       ]);
       setBookings(dayData);
       setWeekBookings(weekData);
@@ -124,7 +122,7 @@ function StylistDashboard({ token, email }: { token: string; email: string }) {
       <section className="card stack section">
         <h2>Full week bookings</h2>
         <p className="muted">
-          {date} to {addDays(date, 6)}
+          {weekDateRange(date).dateFrom} to {weekDateRange(date).dateTo}
         </p>
         {weekBookings.length === 0 ? (
           <div className="empty">No bookings in this week.</div>

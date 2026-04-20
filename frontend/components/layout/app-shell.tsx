@@ -30,7 +30,7 @@ const stylistLinks: Array<[string, string]> = [
 export function AppShell({ area = "public", children }: AppShellProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<User | null>(() => getStoredUser());
+  const [user, setUser] = useState<User | null>(null);
   const activeArea = user?.role ?? (area !== "public" ? area : undefined);
   const links = activeArea === "admin" ? adminLinks : activeArea === "stylist" ? stylistLinks : [];
 
@@ -60,10 +60,10 @@ export function AppShell({ area = "public", children }: AppShellProps) {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <Link href="/" className="brand" aria-label="Maison Salon home">
-          <span className="brand-mark">M</span>
+        <Link href="/" className="brand" aria-label="Aaranya Salon home">
+          <span className="brand-mark">A</span>
           <span className="brand-meta">
-            <span>Maison Salon</span>
+            <span>Aaranya Salon</span>
             <small>Est. 2024 · Boutique</small>
           </span>
         </Link>
@@ -107,7 +107,7 @@ export function AppShell({ area = "public", children }: AppShellProps) {
       {children}
       <footer className="footer">
         <div>
-          <strong style={{ color: "var(--ink)" }}>Maison Salon</strong> · Crafted boutique
+          <strong style={{ color: "var(--ink)" }}>Aaranya Salon</strong> · Crafted boutique
           salon management
         </div>
         <div className="row" style={{ gap: 18 }}>

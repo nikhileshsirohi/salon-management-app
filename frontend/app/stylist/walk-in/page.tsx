@@ -4,7 +4,9 @@ import { FormEvent, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { ProtectedPage } from "@/components/layout/protected-page";
 import { Notice } from "@/components/ui/notice";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { apiRequest, formatCurrency, formatTime, todayInputValue } from "@/lib/api";
+import { isValidPhoneNumber, normalizePhoneNumber, phoneValidationMessage } from "@/lib/phone";
 import type { AvailabilityResponse, AvailableSlot, Service } from "@/types/api";
 
 export default function StylistWalkInPage() {
@@ -24,7 +26,7 @@ function StylistWalkIn({ token }: { token: string }) {
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("+91 ");
   const [customerEmail, setCustomerEmail] = useState("");
   const [notes, setNotes] = useState("");
   const [slotsLoading, setSlotsLoading] = useState(false);
@@ -78,6 +80,11 @@ function StylistWalkIn({ token }: { token: string }) {
       setError("Customer name and phone are required.");
       return;
     }
+    const normalizedPhone = normalizePhoneNumber(customerPhone);
+    if (!isValidPhoneNumber(normalizedPhone)) {
+      setError(phoneValidationMessage("Customer phone"));
+      return;
+    }
 
     setSaving(true);
     setError("");
@@ -89,7 +96,7 @@ function StylistWalkIn({ token }: { token: string }) {
         body: {
           service_id: serviceId,
           customer_name: customerName,
-          customer_phone: customerPhone,
+          customer_phone: normalizedPhone,
           customer_email: customerEmail || null,
           starts_at_utc: selectedSlot.starts_at_utc,
           notes: notes || null,
@@ -97,7 +104,7 @@ function StylistWalkIn({ token }: { token: string }) {
       });
       setMessage(`Walk-in added for ${formatTime(selectedSlot.starts_at_local)} on ${date}.`);
       setCustomerName("");
-      setCustomerPhone("");
+      setCustomerPhone("+91 ");
       setCustomerEmail("");
       setSelectedSlot(null);
       setNotes("");
@@ -165,10 +172,7 @@ function StylistWalkIn({ token }: { token: string }) {
             <label>Customer name</label>
             <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} required />
           </div>
-          <div className="field">
-            <label>Phone</label>
-            <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} required />
-          </div>
+          <PhoneInput value={customerPhone} onChange={setCustomerPhone} required />
         </div>
         <div className="field">
           <label>Email</label>

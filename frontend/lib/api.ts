@@ -1,3 +1,5 @@
+import { inputDateValue } from "@/lib/date-range";
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api/v1";
 
 export const DEFAULT_SALON_ID = Number(process.env.NEXT_PUBLIC_DEFAULT_SALON_ID ?? "1");
@@ -72,11 +74,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
 export function formatCurrency(value: string | number | null | undefined) {
   const amount = Number(value ?? 0);
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
+  const formatted = new Intl.NumberFormat("en-IN", {
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(amount);
+  return `Rs ${formatted}`;
 }
 
 export function formatTime(value: string) {
@@ -84,5 +86,5 @@ export function formatTime(value: string) {
 }
 
 export function todayInputValue() {
-  return new Date().toISOString().slice(0, 10);
+  return inputDateValue();
 }

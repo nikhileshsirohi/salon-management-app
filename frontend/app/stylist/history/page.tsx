@@ -6,6 +6,7 @@ import { ProtectedPage } from "@/components/layout/protected-page";
 import { StylistBookingCard } from "@/components/bookings/stylist-booking-card";
 import { Notice } from "@/components/ui/notice";
 import { apiRequest, todayInputValue } from "@/lib/api";
+import { weekDateRange } from "@/lib/date-range";
 import type { Booking } from "@/types/api";
 
 export default function StylistHistoryPage() {
@@ -19,8 +20,9 @@ export default function StylistHistoryPage() {
 }
 
 function StylistHistory({ token }: { token: string }) {
-  const [dateFrom, setDateFrom] = useState(todayInputValue());
-  const [dateTo, setDateTo] = useState(todayInputValue());
+  const initialDates = weekDateRange(todayInputValue());
+  const [dateFrom, setDateFrom] = useState(initialDates.dateFrom);
+  const [dateTo, setDateTo] = useState(initialDates.dateTo);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -45,6 +47,15 @@ function StylistHistory({ token }: { token: string }) {
     loadHistory();
   }, [dateFrom, dateTo, token]);
 
+  function updateDateFrom(value: string) {
+    setDateFrom(value);
+    setDateTo((current) => (current < value ? value : current));
+  }
+
+  function updateDateTo(value: string) {
+    setDateTo(value < dateFrom ? dateFrom : value);
+  }
+
   return (
     <main className="page">
       <section className="section-header">
@@ -55,11 +66,11 @@ function StylistHistory({ token }: { token: string }) {
         <div className="row">
           <div className="field">
             <label>From</label>
-            <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+            <input type="date" value={dateFrom} onChange={(event) => updateDateFrom(event.target.value)} />
           </div>
           <div className="field">
             <label>To</label>
-            <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+            <input min={dateFrom} type="date" value={dateTo} onChange={(event) => updateDateTo(event.target.value)} />
           </div>
         </div>
       </section>

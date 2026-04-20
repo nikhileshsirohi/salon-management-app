@@ -5,19 +5,20 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ProtectedPage } from "@/components/layout/protected-page";
 import { Notice } from "@/components/ui/notice";
 import { apiRequest, formatCurrency, formatTime, todayInputValue } from "@/lib/api";
+import { weekDateRange } from "@/lib/date-range";
 import { useAdminSalon } from "@/lib/use-admin-salon";
 import type { AvailabilityResponse, AvailableSlot, Booking } from "@/types/api";
 
 function initialDateRange() {
-  const today = todayInputValue();
+  const currentWeek = weekDateRange(todayInputValue());
 
   if (typeof window === "undefined") {
-    return { dateFrom: today, dateTo: today };
+    return currentWeek;
   }
 
   const params = new URLSearchParams(window.location.search);
-  const queryDateFrom = params.get("date_from") ?? today;
-  const queryDateTo = params.get("date_to") ?? queryDateFrom;
+  const queryDateFrom = params.get("date_from") ?? currentWeek.dateFrom;
+  const queryDateTo = params.get("date_to") ?? currentWeek.dateTo;
 
   return {
     dateFrom: queryDateFrom,

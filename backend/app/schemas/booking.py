@@ -1,8 +1,9 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.core.phone import normalize_phone_number
 from app.models.booking import BookingStatus, PaymentStatus
 
 
@@ -27,6 +28,14 @@ class BookingCreate(BaseModel):
     ends_at_utc: datetime
     local_date: date
     notes: str | None = None
+
+    @field_validator("customer_phone")
+    @classmethod
+    def validate_customer_phone(cls, value: str) -> str:
+        normalized = normalize_phone_number(value)
+        if normalized is None:
+            raise ValueError("customer_phone is required")
+        return normalized
 
 
 class BookingRead(BaseModel):
@@ -78,3 +87,11 @@ class WalkInBookingCreate(BaseModel):
     customer_email: EmailStr | None = None
     starts_at_utc: datetime
     notes: str | None = None
+
+    @field_validator("customer_phone")
+    @classmethod
+    def validate_customer_phone(cls, value: str) -> str:
+        normalized = normalize_phone_number(value)
+        if normalized is None:
+            raise ValueError("customer_phone is required")
+        return normalized

@@ -126,7 +126,7 @@ export default function BookingConfirmationPage() {
               You&rsquo;re on the books, {booking.customer_name.split(" ")[0] || "friend"}.
             </h1>
             <p className="lead confirmation-lead">
-              We&rsquo;ve saved your chair at <strong>{salon?.name ?? "Maison Salon"}</strong>
+              We&rsquo;ve saved your chair at <strong>{salon?.name ?? "Aaranya Salon"}</strong>
               {stylistName ? (
                 <>
                   {" "}

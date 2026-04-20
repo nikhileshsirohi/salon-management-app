@@ -155,7 +155,7 @@ function AdminServices({ token }: { token: string }) {
               />
             </div>
             <div className="field">
-              <label>Price</label>
+              <label>Price (Rs)</label>
               <input value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} />
             </div>
           </div>

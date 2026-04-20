@@ -5,8 +5,10 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ProtectedPage } from "@/components/layout/protected-page";
 import { Notice } from "@/components/ui/notice";
 import { PasswordField } from "@/components/ui/password-field";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { apiRequest } from "@/lib/api";
 import { changeMyPassword } from "@/lib/auth";
+import { isValidPhoneNumber, normalizePhoneNumber, phoneValidationMessage } from "@/lib/phone";
 import type { Stylist } from "@/types/api";
 
 export default function StylistProfilePage() {
@@ -66,13 +68,19 @@ function StylistProfile({ token, email }: { token: string; email: string }) {
     setSaving(true);
     setMessage("");
     setError("");
+    const normalizedPhone = normalizePhoneNumber(form.phone);
+    if (normalizedPhone && !isValidPhoneNumber(normalizedPhone)) {
+      setError(phoneValidationMessage("Phone"));
+      setSaving(false);
+      return;
+    }
     try {
       const updated = await apiRequest<Stylist>("/stylist/me/profile", {
         method: "PUT",
         token,
         body: {
           name: form.name,
-          phone: form.phone || null,
+          phone: normalizedPhone || null,
           bio: form.bio || null,
           profile_photo_url: form.profile_photo_url || null,
           specialties: form.specialties
@@ -133,10 +141,7 @@ function StylistProfile({ token, email }: { token: string; email: string }) {
                 <label>Name</label>
                 <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
               </div>
-              <div className="field">
-                <label>Phone</label>
-                <input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
-              </div>
+              <PhoneInput value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
             </div>
             <div className="field">
               <label>Profile photo URL</label>

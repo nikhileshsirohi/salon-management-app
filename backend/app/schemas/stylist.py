@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+from app.core.phone import normalize_phone_number
 
 
 class StylistBase(BaseModel):
@@ -7,6 +9,11 @@ class StylistBase(BaseModel):
     bio: str | None = None
     profile_photo_url: str | None = Field(default=None, max_length=1000)
     is_active: bool = True
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str | None) -> str | None:
+        return normalize_phone_number(value)
 
 
 class StylistCreate(StylistBase):
@@ -25,6 +32,11 @@ class StylistUpdate(BaseModel):
     specialties: list[str] | None = None
     password: str | None = Field(default=None, min_length=8, max_length=128)
 
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str | None) -> str | None:
+        return normalize_phone_number(value)
+
 
 class StylistSelfUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
@@ -32,6 +44,11 @@ class StylistSelfUpdate(BaseModel):
     bio: str | None = None
     profile_photo_url: str | None = Field(default=None, max_length=1000)
     specialties: list[str] | None = None
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str | None) -> str | None:
+        return normalize_phone_number(value)
 
 
 class StylistRead(StylistBase):

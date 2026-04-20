@@ -23,7 +23,7 @@ type ServiceHighlight = {
 const features: Feature[] = [
   {
     title: "Live slot discovery",
-    lead: "Transparent, real-time availability across every stylist—no back-and-forth calls.",
+    lead: "Transparent, real-time availability across every stylist, without the back-and-forth calls.",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="4" width="18" height="18" rx="3" />
@@ -33,7 +33,7 @@ const features: Feature[] = [
   },
   {
     title: "Signature stylists",
-    lead: "Vetted professionals with distinct specialties—from precision color to bridal finish.",
+    lead: "Vetted professionals with distinct specialties, from precision cuts to bridal finishes.",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
         <path d="M20 21a8 8 0 1 0-16 0" />
@@ -57,17 +57,17 @@ const features: Feature[] = [
 
 const services: ServiceHighlight[] = [
   {
-    name: "Signature Cut & Finish",
+    name: "Signature Haircut & Blow Dry",
     duration: "60 min",
-    price: "From $85",
-    description: "Bespoke consultation, precision cut, and editorial blow-out.",
+    price: "From Rs 1,200",
+    description: "Personal consultation, precision cut, and polished blow dry.",
     image:
       "https://images.unsplash.com/photo-1580618672591-eb180b1a973f?auto=format&fit=crop&w=1000&q=80",
   },
   {
-    name: "Balayage & Colour",
+    name: "Balayage & Global Colour",
     duration: "150 min",
-    price: "From $220",
+    price: "From Rs 4,200",
     description: "Hand-painted dimension with gloss, toner, and bond protection.",
     image:
       "https://images.unsplash.com/photo-1522337094846-8a818192de1f?auto=format&fit=crop&w=1000&q=80",
@@ -75,16 +75,16 @@ const services: ServiceHighlight[] = [
   {
     name: "Keratin Smoothing",
     duration: "120 min",
-    price: "From $260",
-    description: "Frizz-defining treatment with luminous, silk-soft results.",
+    price: "From Rs 5,500",
+    description: "Frizz-control treatment with smooth, glossy results.",
     image:
       "https://images.unsplash.com/photo-1522338242992-e1a54906a8da?auto=format&fit=crop&w=1000&q=80",
   },
   {
-    name: "Bridal Styling",
+    name: "Bridal Hair Styling",
     duration: "90 min",
-    price: "From $180",
-    description: "Editorial up-dos and soft finishes tailored to your moment.",
+    price: "From Rs 6,500",
+    description: "Elegant buns, waves, and dupatta-friendly finishes for the occasion.",
     image:
       "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=1000&q=80",
   },
@@ -93,21 +93,21 @@ const services: ServiceHighlight[] = [
 const testimonials = [
   {
     quote:
-      "The most composed salon experience I have had in years. Booking takes thirty seconds and the result is always editorial.",
-    name: "Amelia R.",
-    role: "Editor, Atelier Magazine",
+      "The calmest salon visit I have had in Mumbai. Booking takes thirty seconds and the finish is always polished.",
+    name: "Ananya S.",
+    role: "Regular guest, Bandra",
   },
   {
     quote:
-      "Running the studio with Maison replaced three tools. My stylists finally have one place for schedule, walk-ins, and payments.",
-    name: "Darius K.",
-    role: "Admin, North Lane Studio",
+      "Running the studio with Aaranya replaced three tools. My stylists finally have one place for schedule, walk-ins, and payments.",
+    name: "Ritika M.",
+    role: "Admin, Aaranya Salon",
   },
   {
     quote:
-      "My color appointments are seamless. Live slots and thoughtful reminders—zero friction, pure calm.",
-    name: "Priya S.",
-    role: "Regular guest",
+      "My colour appointments are seamless. Live slots and thoughtful reminders mean I never have to call twice.",
+    name: "Priya N.",
+    role: "Regular guest, Powai",
   },
 ];
 
@@ -139,9 +139,9 @@ export default function HomePage() {
               Refined cuts. Radiant colour. <em>Effortless booking.</em>
             </h1>
             <p>
-              Maison Salon pairs a sanctuary-style studio with a quietly powerful
+              Aaranya Salon pairs a calm Indian studio experience with a quietly powerful
               booking platform. Choose your service, meet your stylist, and reserve a
-              real, live appointment in under a minute.
+              real appointment in under a minute.
             </p>
             <div className="row" style={{ gap: 14 }}>
               <Link className="button primary" href="/customer/booking">
@@ -151,7 +151,7 @@ export default function HomePage() {
                 </span>
               </Link>
               <Link className="button secondary" href={dashboardHref}>
-                {user ? "Open dashboard" : "Staff sign-in"}
+                {user ? "Open dashboard" : "Login"}
               </Link>
             </div>
             <div className="hero-stats">
@@ -171,12 +171,12 @@ export default function HomePage() {
           </div>
           <div className="hero-image">
             <img
-              alt="Maison Salon styling floor"
+              alt="Aaranya Salon styling floor"
               src="https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=1400&q=85"
             />
             <div className="hero-badge">
               <span className="stars">★★★★★</span>
-              <span>Voted best new salon, 2025</span>
+              <span>Loved by Mumbai guests, 2025</span>
             </div>
           </div>
         </section>
@@ -185,11 +185,11 @@ export default function HomePage() {
         <section className="section">
           <div className="section-header">
             <div>
-              <span className="eyebrow">Why Maison</span>
+              <span className="eyebrow">Why Aaranya</span>
               <h2>Designed around calm, crafted for detail.</h2>
             </div>
             <p className="lead" style={{ maxWidth: 420 }}>
-              Every moment of the salon visit—online and in-chair—has been polished
+              Every moment of the salon visit, online and in-chair, has been polished
               to feel as considered as your finished look.
             </p>
           </div>
@@ -211,7 +211,7 @@ export default function HomePage() {
           <div className="section-header">
             <div>
               <span className="eyebrow">Signature services</span>
-              <h2>A curated menu, crafted seasonally.</h2>
+              <h2>A curated menu, crafted for Indian routines.</h2>
             </div>
             <Link className="button ghost" href="/customer/booking">
               Browse all services

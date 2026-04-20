@@ -5,7 +5,9 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ProtectedPage } from "@/components/layout/protected-page";
 import { Notice } from "@/components/ui/notice";
 import { PasswordField } from "@/components/ui/password-field";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { apiRequest, formatTime } from "@/lib/api";
+import { isValidPhoneNumber, normalizePhoneNumber, phoneValidationMessage } from "@/lib/phone";
 import { useAdminSalon } from "@/lib/use-admin-salon";
 import type { Stylist, StylistAvailability } from "@/types/api";
 
@@ -27,7 +29,7 @@ const emptyStylist: StylistForm = {
   email: "",
   password: "",
   confirm_password: "",
-  phone: "",
+  phone: "+91 ",
   bio: "",
   profile_photo_url: "",
   specialties: "",
@@ -124,6 +126,11 @@ function AdminStylists({ token }: { token: string }) {
         setError("Password and confirm password must match.");
         return;
       }
+      const normalizedPhone = normalizePhoneNumber(form.phone);
+      if (normalizedPhone && !isValidPhoneNumber(normalizedPhone)) {
+        setError(phoneValidationMessage("Stylist phone"));
+        return;
+      }
       await apiRequest<Stylist>("/stylists", {
         method: "POST",
         token,
@@ -132,7 +139,7 @@ function AdminStylists({ token }: { token: string }) {
           email: form.email,
           password: form.password,
           name: form.name,
-          phone: form.phone || null,
+          phone: normalizedPhone || null,
           bio: form.bio || null,
           profile_photo_url: form.profile_photo_url || null,
           is_active: true,
@@ -175,13 +182,18 @@ function AdminStylists({ token }: { token: string }) {
         setError("Password and confirm password must match.");
         return;
       }
+      const normalizedPhone = normalizePhoneNumber(editForm.phone);
+      if (normalizedPhone && !isValidPhoneNumber(normalizedPhone)) {
+        setError(phoneValidationMessage("Stylist phone"));
+        return;
+      }
 
       const updated = await apiRequest<Stylist>(`/stylists/${selected.id}`, {
         method: "PUT",
         token,
         body: {
           name: editForm.name,
-          phone: editForm.phone || null,
+          phone: normalizedPhone || null,
           bio: editForm.bio || null,
           profile_photo_url: editForm.profile_photo_url || null,
           specialties: editForm.specialties
@@ -294,10 +306,7 @@ function AdminStylists({ token }: { token: string }) {
                 onChange={(value) => setForm({ ...form, confirm_password: value })}
               />
             </div>
-            <div className="field">
-              <label>Phone</label>
-              <input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
-            </div>
+            <PhoneInput value={form.phone} onChange={(phone) => setForm({ ...form, phone })} />
             <div className="field">
               <label>Profile photo URL</label>
               <input value={form.profile_photo_url} onChange={(event) => setForm({ ...form, profile_photo_url: event.target.value })} />
@@ -374,10 +383,7 @@ function AdminStylists({ token }: { token: string }) {
               <label>Name</label>
               <input value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} />
             </div>
-            <div className="field">
-              <label>Phone</label>
-              <input value={editForm.phone} onChange={(event) => setEditForm({ ...editForm, phone: event.target.value })} />
-            </div>
+            <PhoneInput value={editForm.phone} onChange={(phone) => setEditForm({ ...editForm, phone })} />
           </div>
           <div className="field">
             <label>Profile photo URL</label>

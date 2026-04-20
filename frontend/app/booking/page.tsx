@@ -4,8 +4,10 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { Notice } from "@/components/ui/notice";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { apiRequest, formatCurrency, formatTime, todayInputValue } from "@/lib/api";
 import { storeBookingConfirmation } from "@/lib/booking-confirmation";
+import { isValidPhoneNumber, normalizePhoneNumber, phoneValidationMessage } from "@/lib/phone";
 import type {
   AvailabilityResponse,
   AvailableSlot,
@@ -24,7 +26,7 @@ type BookingForm = {
 
 const initialForm: BookingForm = {
   customer_name: "",
-  customer_phone: "",
+  customer_phone: "+91 ",
   customer_email: "",
   notes: "",
 };
@@ -94,7 +96,7 @@ export default function BookingPage() {
     ];
     if (hasMultipleSalons) {
       return [
-        { id: "studio", label: "Studio", description: "Choose your Maison Salon location." },
+        { id: "studio", label: "Studio", description: "Choose your Aaranya Salon location." },
         ...base,
       ];
     }
@@ -221,7 +223,7 @@ export default function BookingPage() {
       case "schedule":
         return selectedSlot !== null;
       case "details":
-        return Boolean(form.customer_name.trim() && form.customer_phone.trim());
+        return Boolean(form.customer_name.trim() && isValidPhoneNumber(form.customer_phone));
       default:
         return false;
     }
@@ -252,7 +254,7 @@ export default function BookingPage() {
       case "schedule":
         return "Pick a time slot to continue.";
       case "details":
-        return "Name and phone are required.";
+        return form.customer_name.trim() ? phoneValidationMessage() : "Name and phone are required.";
       default:
         return "";
     }
@@ -269,6 +271,11 @@ export default function BookingPage() {
     }
     if (!form.customer_name.trim() || !form.customer_phone.trim()) {
       setError("Name and phone are required.");
+      return;
+    }
+    const normalizedPhone = normalizePhoneNumber(form.customer_phone);
+    if (!isValidPhoneNumber(normalizedPhone)) {
+      setError(phoneValidationMessage());
       return;
     }
 
@@ -289,7 +296,7 @@ export default function BookingPage() {
           service_id: primaryServiceId,
           additional_service_ids: additionalServiceIds,
           customer_name: form.customer_name.trim(),
-          customer_phone: form.customer_phone.trim(),
+          customer_phone: normalizedPhone,
           customer_email: form.customer_email.trim() || null,
           starts_at_utc: selectedSlot.starts_at_utc,
           notes: form.notes.trim() || null,
@@ -631,14 +638,10 @@ export default function BookingPage() {
                         placeholder="Your name"
                       />
                     </div>
-                    <div className="field">
-                      <label>Phone</label>
-                      <input
-                        value={form.customer_phone}
-                        onChange={(event) => setForm({ ...form, customer_phone: event.target.value })}
-                        placeholder="Mobile number"
-                      />
-                    </div>
+                    <PhoneInput
+                      value={form.customer_phone}
+                      onChange={(phone) => setForm({ ...form, customer_phone: phone })}
+                    />
                   </div>
                   <div className="field">
                     <label>Email (optional)</label>

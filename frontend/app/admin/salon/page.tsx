@@ -5,8 +5,11 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ProtectedPage } from "@/components/layout/protected-page";
 import { Notice } from "@/components/ui/notice";
 import { PasswordField } from "@/components/ui/password-field";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { apiRequest, formatTime } from "@/lib/api";
 import { changeMyPassword } from "@/lib/auth";
+import { isValidPhoneNumber, normalizePhoneNumber, phoneValidationMessage } from "@/lib/phone";
+import { getTimezoneOptions } from "@/lib/timezones";
 import type { OperatingHour, Salon, User } from "@/types/api";
 
 const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -35,6 +38,7 @@ function AdminSalon({ token, user }: { token: string; user: User }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [timezoneOptions] = useState(() => getTimezoneOptions());
 
   useEffect(() => {
     async function load() {
@@ -61,6 +65,12 @@ function AdminSalon({ token, user }: { token: string; user: User }) {
     setSaving(true);
     setMessage("");
     setError("");
+    const normalizedPhone = normalizePhoneNumber(salon.phone ?? "");
+    if (normalizedPhone && !isValidPhoneNumber(normalizedPhone)) {
+      setError(phoneValidationMessage("Salon phone"));
+      setSaving(false);
+      return;
+    }
     try {
       const updated = await apiRequest<Salon>(`/salon/${salon.id}`, {
         method: "PUT",
@@ -68,7 +78,7 @@ function AdminSalon({ token, user }: { token: string; user: User }) {
         body: {
           name: salon.name,
           address: salon.address,
-          phone: salon.phone,
+          phone: normalizedPhone || null,
           timezone: salon.timezone,
           default_slot_duration_minutes: salon.default_slot_duration_minutes,
         },
@@ -203,13 +213,16 @@ function AdminSalon({ token, user }: { token: string; user: User }) {
                 <input value={salon.address ?? ""} onChange={(event) => setSalon({ ...salon, address: event.target.value })} />
               </div>
               <div className="form-grid">
-                <div className="field">
-                  <label>Phone</label>
-                  <input value={salon.phone ?? ""} onChange={(event) => setSalon({ ...salon, phone: event.target.value })} />
-                </div>
+                <PhoneInput value={salon.phone ?? "+91"} onChange={(phone) => setSalon({ ...salon, phone })} />
                 <div className="field">
                   <label>Timezone</label>
-                  <input value={salon.timezone} onChange={(event) => setSalon({ ...salon, timezone: event.target.value })} />
+                  <select value={salon.timezone} onChange={(event) => setSalon({ ...salon, timezone: event.target.value })}>
+                    {timezoneOptions.map((timezone) => (
+                      <option key={timezone} value={timezone}>
+                        {timezone}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="field">

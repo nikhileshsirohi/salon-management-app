@@ -16,52 +16,52 @@ from app.models.user import User, UserRole
 
 
 SERVICES = [
-    ("Signature Cut & Finish", "Bespoke consultation, precision cut, and editorial blow-out.", 60, "85.00"),
-    ("Balayage & Colour", "Hand-painted dimension with gloss, toner, and bond protection.", 150, "220.00"),
-    ("Keratin Smoothing", "Frizz-defining treatment with luminous, silk-soft results.", 120, "260.00"),
-    ("Bridal Styling", "Editorial up-dos and soft finishes tailored to your moment.", 90, "180.00"),
-    ("Classic Manicure", "Precise shaping, cuticle care, and high-shine polish.", 45, "45.00"),
-    ("Spa Pedicure", "Soothing soak, exfoliation, and restorative foot massage.", 60, "65.00"),
+    ("Signature Haircut & Blow Dry", "Personal consultation, precision cut, and polished blow dry.", 60, "1200.00"),
+    ("Balayage & Global Colour", "Hand-painted dimension with gloss, toner, and bond protection.", 150, "4200.00"),
+    ("Keratin Smoothing", "Frizz-control treatment with smooth, glossy results.", 120, "5500.00"),
+    ("Bridal Hair Styling", "Elegant buns, waves, and dupatta-friendly finishes for the occasion.", 90, "6500.00"),
+    ("Classic Manicure", "Precise shaping, cuticle care, and high-shine polish.", 45, "800.00"),
+    ("Spa Pedicure", "Soothing soak, exfoliation, and restorative foot massage.", 60, "1200.00"),
 ]
 
 
 STYLISTS = [
     {
-        "name": "Aria Moreau",
-        "email": "aria@example.com",
+        "name": "Ananya Sharma",
+        "email": "ananya@example.com",
         "password": "password123",
-        "phone": "+1 415 555 0111",
-        "bio": "Senior colourist specialising in dimensional balayage and living blondes.",
+        "phone": "+91 98765 40111",
+        "bio": "Senior colourist specialising in dimensional balayage and bridal colour prep.",
         "photo": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80",
-        "specialties": ["Colour", "Balayage", "Blondes"],
+        "specialties": ["Colour", "Balayage", "Bridal prep"],
         "lifetime_clients": 1287,
     },
     {
-        "name": "Luca Bennett",
-        "email": "luca@example.com",
+        "name": "Rohan Mehta",
+        "email": "rohan@example.com",
         "password": "password123",
-        "phone": "+1 415 555 0122",
-        "bio": "Master cutter with an editorial eye for modern, lived-in shapes.",
+        "phone": "+91 98765 40122",
+        "bio": "Master cutter with a sharp eye for modern layers, texture, and men's styling.",
         "photo": "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=400&q=80",
         "specialties": ["Cuts", "Men's styling", "Texture"],
         "lifetime_clients": 942,
     },
     {
-        "name": "Noor Rahimi",
-        "email": "noor@example.com",
+        "name": "Meera Iyer",
+        "email": "meera@example.com",
         "password": "password123",
-        "phone": "+1 415 555 0133",
-        "bio": "Bridal and special-event specialist. Soft finishes, elegant up-dos.",
+        "phone": "+91 98765 40133",
+        "bio": "Bridal and festive styling specialist. Soft waves, buns, and elegant up-dos.",
         "photo": "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=400&q=80",
-        "specialties": ["Bridal", "Up-dos", "Editorial"],
+        "specialties": ["Bridal", "Up-dos", "Festive"],
         "lifetime_clients": 564,
     },
     {
-        "name": "Sana Patel",
-        "email": "sana@example.com",
+        "name": "Kavya Nair",
+        "email": "kavya@example.com",
         "password": "password123",
-        "phone": "+1 415 555 0144",
-        "bio": "Nail artist—clean, quiet manicures and restorative pedicures.",
+        "phone": "+91 98765 40144",
+        "bio": "Nail artist focused on clean manicures, gel polish, and restorative pedicures.",
         "photo": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80",
         "specialties": ["Nails", "Pedicure", "Gel"],
         "lifetime_clients": 389,
@@ -206,10 +206,10 @@ def seed_demo_data() -> None:
         if salon is None:
             salon = Salon(
                 admin_user_id=admin.id,
-                name="Maison Salon — SoMa",
-                address="220 Mission Street, San Francisco",
-                phone="+1 415 555 0100",
-                timezone="America/Los_Angeles",
+                name="Aaranya Salon - Bandra",
+                address="14 Linking Road, Bandra West, Mumbai",
+                phone="+91 98765 40100",
+                timezone="Asia/Kolkata",
                 default_slot_duration_minutes=30,
             )
             db.add(salon)
@@ -221,7 +221,7 @@ def seed_demo_data() -> None:
 
         db.commit()
 
-        print("— Maison Salon demo seeded —")
+        print("— Aaranya Salon demo seeded —")
         print(f"  Admin email:      {admin.email}")
         print(f"  Admin password:   password123")
         print(f"  Salon id:         {salon.id} ({salon.name})")
@@ -231,7 +231,7 @@ def seed_demo_data() -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Seed the Maison Salon demo data.")
+    parser = argparse.ArgumentParser(description="Seed the Aaranya Salon demo data.")
     parser.add_argument(
         "--reset",
         action="store_true",
