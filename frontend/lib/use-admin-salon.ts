@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { apiRequest } from "@/lib/api";
 import type { Salon } from "@/types/api";
 
-export function useOwnerSalon(token: string) {
+export function useAdminSalon(token: string) {
   const [salon, setSalon] = useState<Salon | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

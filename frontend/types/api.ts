@@ -1,4 +1,4 @@
-export type UserRole = "owner" | "stylist";
+export type UserRole = "admin" | "stylist";
 
 export type User = {
   id: number;
@@ -10,15 +10,6 @@ export type AuthToken = {
   access_token: string;
   token_type: string;
   user: User;
-};
-
-export type OwnerSignupPayload = {
-  email: string;
-  password: string;
-  salon_name: string;
-  salon_address?: string | null;
-  salon_phone?: string | null;
-  timezone: string;
 };
 
 export type Service = {
@@ -42,11 +33,12 @@ export type Stylist = {
   profile_photo_url?: string | null;
   is_active: boolean;
   specialties: string[];
+  clients_served?: number;
 };
 
 export type Salon = {
   id: number;
-  owner_user_id?: number;
+  admin_user_id?: number;
   name: string;
   address?: string | null;
   phone?: string | null;
@@ -78,15 +70,27 @@ export type AvailableSlot = {
   ends_at_local: string;
   starts_at_utc: string;
   ends_at_utc: string;
+  stylist_id?: number | null;
+  stylist_name?: string | null;
 };
 
 export type AvailabilityResponse = {
   salon_id: number;
   stylist_id: number;
   service_id: number;
+  service_ids?: number[];
+  total_duration_minutes?: number;
   date: string;
   timezone: string;
   slots: AvailableSlot[];
+};
+
+export type BookingService = {
+  service_id: number;
+  name: string;
+  duration_minutes: number;
+  price: string;
+  order_index: number;
 };
 
 export type Booking = {
@@ -107,6 +111,8 @@ export type Booking = {
   payment_status?: "unpaid" | "paid" | "refunded" | null;
   stylist_name?: string | null;
   service_name?: string | null;
+  services?: BookingService[];
+  total_duration_minutes?: number | null;
 };
 
 export type DashboardSummary = {

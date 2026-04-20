@@ -5,7 +5,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ProtectedPage } from "@/components/layout/protected-page";
 import { Notice } from "@/components/ui/notice";
 import { apiRequest, formatCurrency } from "@/lib/api";
-import { useOwnerSalon } from "@/lib/use-owner-salon";
+import { useAdminSalon } from "@/lib/use-admin-salon";
 import type { Service } from "@/types/api";
 
 type ServiceForm = {
@@ -25,24 +25,24 @@ const emptyForm: ServiceForm = {
   is_active: true,
 };
 
-export default function OwnerServicesPage() {
+export default function AdminServicesPage() {
   return (
-    <AppShell area="owner">
-      <ProtectedPage role="owner">
-        {({ token }) => <OwnerServices token={token} />}
+    <AppShell area="admin">
+      <ProtectedPage role="admin">
+        {({ token }) => <AdminServices token={token} />}
       </ProtectedPage>
     </AppShell>
   );
 }
 
-function OwnerServices({ token }: { token: string }) {
+function AdminServices({ token }: { token: string }) {
   const [services, setServices] = useState<Service[]>([]);
   const [form, setForm] = useState<ServiceForm>(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const { salonId, loading: salonLoading, error: salonError } = useOwnerSalon(token);
+  const { salonId, loading: salonLoading, error: salonError } = useAdminSalon(token);
 
   async function loadServices() {
     if (!salonId) return;
@@ -127,7 +127,7 @@ function OwnerServices({ token }: { token: string }) {
     <main className="page">
       <section className="section-header">
         <div>
-          <span className="eyebrow">Owner</span>
+          <span className="eyebrow">Admin</span>
           <h1 className="page-title">Services</h1>
         </div>
       </section>

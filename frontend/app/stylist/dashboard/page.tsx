@@ -136,7 +136,10 @@ function StylistDashboard({ token, email }: { token: string; email: string }) {
                 <span className={`status-badge status-${booking.status}`}>{booking.status}</span>
               </div>
               <p>
-                {booking.service_name}, {new Date(booking.starts_at_utc).toLocaleString()}
+                {booking.services && booking.services.length > 0
+                  ? booking.services.map((s) => s.name).join(" + ")
+                  : booking.service_name}
+                , {new Date(booking.starts_at_utc).toLocaleString()}
               </p>
               <p className="muted">
                 {booking.customer_phone}

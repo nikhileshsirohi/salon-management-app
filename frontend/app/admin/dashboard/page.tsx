@@ -6,25 +6,25 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ProtectedPage } from "@/components/layout/protected-page";
 import { Notice } from "@/components/ui/notice";
 import { apiRequest, formatCurrency, todayInputValue } from "@/lib/api";
-import { useOwnerSalon } from "@/lib/use-owner-salon";
+import { useAdminSalon } from "@/lib/use-admin-salon";
 import type { DashboardSummary } from "@/types/api";
 
-export default function OwnerDashboardPage() {
+export default function AdminDashboardPage() {
   return (
-    <AppShell area="owner">
-      <ProtectedPage role="owner">
-        {({ token }) => <OwnerDashboard token={token} />}
+    <AppShell area="admin">
+      <ProtectedPage role="admin">
+        {({ token }) => <AdminDashboard token={token} />}
       </ProtectedPage>
     </AppShell>
   );
 }
 
-function OwnerDashboard({ token }: { token: string }) {
+function AdminDashboard({ token }: { token: string }) {
   const [date, setDate] = useState(todayInputValue());
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const { salon, salonId, loading: salonLoading, error: salonError } = useOwnerSalon(token);
+  const { salon, salonId, loading: salonLoading, error: salonError } = useAdminSalon(token);
 
   useEffect(() => {
     async function loadSummary() {
@@ -51,7 +51,7 @@ function OwnerDashboard({ token }: { token: string }) {
     <main className="page">
       <section className="section-header">
         <div>
-          <span className="eyebrow">Owner dashboard</span>
+          <span className="eyebrow">Admin dashboard</span>
           <h1 className="page-title">Today at a glance</h1>
           {salon && <p className="lead">{salon.name}</p>}
         </div>
@@ -100,12 +100,15 @@ function OwnerDashboard({ token }: { token: string }) {
                 summary.upcoming_appointments.map((booking) => (
                   <Link
                     className="card select-card"
-                    href={`/owner/bookings?date_from=${booking.local_date}&date_to=${booking.local_date}`}
+                    href={`/admin/bookings?date_from=${booking.local_date}&date_to=${booking.local_date}`}
                     key={booking.id}
                   >
                     <strong>{booking.customer_name}</strong>
                     <p>
-                      {booking.service_name} with {booking.stylist_name}
+                      {booking.services && booking.services.length > 0
+                        ? booking.services.map((s) => s.name).join(" + ")
+                        : booking.service_name}{" "}
+                      with {booking.stylist_name}
                     </p>
                     <span className="pill">{new Date(booking.starts_at_utc).toLocaleString()}</span>
                   </Link>

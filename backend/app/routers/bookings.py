@@ -7,8 +7,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_owner, get_owned_salon
-from app.models.booking import Booking, BookingCharge, BookingStatus, PaymentStatus
+from app.core.dependencies import get_admin_salon, get_current_admin
+from app.models.booking import Booking, BookingCharge, BookingService, BookingStatus, PaymentStatus
 from app.models.service import Service
 from app.models.stylist import Stylist
 from app.models.user import User
@@ -17,6 +17,7 @@ from app.schemas.booking import (
     BookingCancel,
     BookingRead,
     BookingReschedule,
+    BookingServiceRead,
     BookingStatusUpdate,
     PaymentStatusUpdate,
 )
@@ -29,12 +30,38 @@ def bookings_status() -> dict[str, str]:
     return {"module": "bookings", "status": "ready"}
 
 
+def load_booking_services(db: Session, booking_id: int) -> list[BookingServiceRead]:
+    rows = db.execute(
+        select(BookingService, Service)
+        .join(Service, Service.id == BookingService.service_id)
+        .where(BookingService.booking_id == booking_id)
+        .order_by(BookingService.order_index, BookingService.id)
+    ).all()
+    return [
+        BookingServiceRead(
+            service_id=service.id,
+            name=service.name,
+            duration_minutes=link.duration_minutes,
+            price=link.price,
+            order_index=link.order_index,
+        )
+        for link, service in rows
+    ]
+
+
 def to_booking_read(
     booking: Booking,
     charge: BookingCharge | None,
     stylist: Stylist | None,
     service: Service | None,
+    services: list[BookingServiceRead] | None = None,
 ) -> BookingRead:
+    resolved_services = services or []
+    total_duration = (
+        sum(svc.duration_minutes for svc in resolved_services)
+        if resolved_services
+        else None
+    )
     return BookingRead(
         id=booking.id,
         salon_id=booking.salon_id,
@@ -53,6 +80,8 @@ def to_booking_read(
         payment_status=charge.status.value if charge else None,
         stylist_name=stylist.name if stylist else None,
         service_name=service.name if service else None,
+        services=resolved_services,
+        total_duration_minutes=total_duration,
     )
 
 
@@ -73,9 +102,9 @@ def list_bookings(
     date_to: date | None = None,
     booking_status: BookingStatus | None = Query(default=None, alias="status"),
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> list[BookingRead]:
-    get_owned_salon(salon_id, db, owner)
+    get_admin_salon(salon_id, db, admin)
     query = booking_rows_query().where(Booking.salon_id == salon_id)
 
     if stylist_id is not None:
@@ -89,14 +118,23 @@ def list_bookings(
 
     query = query.order_by(Booking.starts_at_utc)
     rows = db.execute(query).all()
-    return [to_booking_read(booking, charge, stylist, service) for booking, charge, stylist, service in rows]
+    return [
+        to_booking_read(
+            booking,
+            charge,
+            stylist,
+            service,
+            services=load_booking_services(db, booking.id),
+        )
+        for booking, charge, stylist, service in rows
+    ]
 
 
 @router.get("/{booking_id}", response_model=BookingRead)
 def get_booking(
     booking_id: int,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> BookingRead:
     row = db.execute(booking_rows_query().where(Booking.id == booking_id)).first()
     if row is None:
@@ -106,8 +144,14 @@ def get_booking(
         )
 
     booking, charge, stylist, service = row
-    get_owned_salon(booking.salon_id, db, owner)
-    return to_booking_read(booking, charge, stylist, service)
+    get_admin_salon(booking.salon_id, db, admin)
+    return to_booking_read(
+        booking,
+        charge,
+        stylist,
+        service,
+        services=load_booking_services(db, booking.id),
+    )
 
 
 @router.put("/{booking_id}/status", response_model=BookingRead)
@@ -115,7 +159,7 @@ def update_booking_status(
     booking_id: int,
     payload: BookingStatusUpdate,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> BookingRead:
     booking = db.get(Booking, booking_id)
     if booking is None:
@@ -124,7 +168,7 @@ def update_booking_status(
             detail="Booking not found",
         )
 
-    get_owned_salon(booking.salon_id, db, owner)
+    get_admin_salon(booking.salon_id, db, admin)
     if booking.status == BookingStatus.CANCELLED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -140,7 +184,7 @@ def update_booking_status(
     db.add(booking)
     db.commit()
 
-    return get_booking(booking_id, db, owner)
+    return get_booking(booking_id, db, admin)
 
 
 @router.put("/{booking_id}/payment-status", response_model=BookingRead)
@@ -148,7 +192,7 @@ def update_booking_payment_status(
     booking_id: int,
     payload: PaymentStatusUpdate,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> BookingRead:
     booking = db.get(Booking, booking_id)
     if booking is None:
@@ -157,7 +201,7 @@ def update_booking_payment_status(
             detail="Booking not found",
         )
 
-    get_owned_salon(booking.salon_id, db, owner)
+    get_admin_salon(booking.salon_id, db, admin)
     if booking.status == BookingStatus.CANCELLED and payload.status == PaymentStatus.PAID:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -175,7 +219,7 @@ def update_booking_payment_status(
     db.add(charge)
     db.commit()
 
-    return get_booking(booking_id, db, owner)
+    return get_booking(booking_id, db, admin)
 
 
 @router.post("/{booking_id}/cancel", response_model=BookingRead)
@@ -183,7 +227,7 @@ def cancel_booking(
     booking_id: int,
     payload: BookingCancel,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> BookingRead:
     booking = db.get(Booking, booking_id)
     if booking is None:
@@ -192,7 +236,7 @@ def cancel_booking(
             detail="Booking not found",
         )
 
-    get_owned_salon(booking.salon_id, db, owner)
+    get_admin_salon(booking.salon_id, db, admin)
     if booking.status != BookingStatus.BOOKED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -205,7 +249,7 @@ def cancel_booking(
 
     db.add(booking)
     db.commit()
-    return get_booking(booking_id, db, owner)
+    return get_booking(booking_id, db, admin)
 
 
 @router.put("/{booking_id}/reschedule", response_model=BookingRead)
@@ -213,7 +257,7 @@ def reschedule_booking(
     booking_id: int,
     payload: BookingReschedule,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> BookingRead:
     booking = db.get(Booking, booking_id)
     if booking is None:
@@ -222,7 +266,7 @@ def reschedule_booking(
             detail="Booking not found",
         )
 
-    get_owned_salon(booking.salon_id, db, owner)
+    get_admin_salon(booking.salon_id, db, admin)
     if booking.status != BookingStatus.BOOKED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -233,6 +277,12 @@ def reschedule_booking(
         db,
         booking.stylist_id,
         booking.service_id,
+    )
+    booking_services = load_booking_services(db, booking.id)
+    total_duration = (
+        sum(svc.duration_minutes for svc in booking_services)
+        if booking_services
+        else service.duration_minutes
     )
 
     starts_at_utc = payload.starts_at_utc
@@ -248,6 +298,7 @@ def reschedule_booking(
         salon,
         local_start.date(),
         exclude_booking_id=booking.id,
+        duration_minutes=total_duration,
     )
     matching_slot = next(
         (slot for slot in available_slots if slot.starts_at_utc == starts_at_utc),
@@ -276,4 +327,4 @@ def reschedule_booking(
             detail="Selected reschedule slot is no longer available",
         ) from error
 
-    return get_booking(booking_id, db, owner)
+    return get_booking(booking_id, db, admin)

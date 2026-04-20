@@ -6,6 +6,16 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from app.models.booking import BookingStatus, PaymentStatus
 
 
+class BookingServiceRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    service_id: int
+    name: str
+    duration_minutes: int
+    price: Decimal
+    order_index: int = 0
+
+
 class BookingCreate(BaseModel):
     salon_id: int
     stylist_id: int
@@ -39,6 +49,8 @@ class BookingRead(BaseModel):
     payment_status: str | None = None
     stylist_name: str | None = None
     service_name: str | None = None
+    services: list[BookingServiceRead] = Field(default_factory=list)
+    total_duration_minutes: int | None = None
 
 
 class BookingStatusUpdate(BaseModel):
@@ -60,6 +72,7 @@ class BookingReschedule(BaseModel):
 
 class WalkInBookingCreate(BaseModel):
     service_id: int
+    additional_service_ids: list[int] = Field(default_factory=list)
     customer_name: str = Field(min_length=1, max_length=255)
     customer_phone: str = Field(min_length=1, max_length=50)
     customer_email: EmailStr | None = None

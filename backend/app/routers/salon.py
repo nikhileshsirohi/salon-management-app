@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_owner, get_owned_salon
+from app.core.dependencies import get_admin_salon, get_current_admin
 from app.models.availability import SalonOperatingHour
 from app.models.salon import Salon
 from app.models.user import User
@@ -22,8 +22,8 @@ def salon_status() -> dict[str, str]:
     return {"module": "salon", "status": "ready"}
 
 
-def get_owner_salon(db: Session, owner: User) -> Salon | None:
-    return db.scalar(select(Salon).where(Salon.owner_user_id == owner.id))
+def find_admin_salon(db: Session, admin: User) -> Salon | None:
+    return db.scalar(select(Salon).where(Salon.admin_user_id == admin.id))
 
 
 def closed_day(salon_id: int, day_of_week: int) -> OperatingHourRead:
@@ -53,13 +53,13 @@ def to_operating_hour_read(hour: SalonOperatingHour) -> OperatingHourRead:
 @router.get("/me/current", response_model=SalonRead)
 def get_my_salon(
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> Salon:
-    salon = get_owner_salon(db, owner)
+    salon = find_admin_salon(db, admin)
     if salon is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Salon not found for this owner",
+            detail="Salon not found for this admin",
         )
     return salon
 
@@ -68,9 +68,9 @@ def get_my_salon(
 def get_salon(
     salon_id: int,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> Salon:
-    return get_owned_salon(salon_id, db, owner)
+    return get_admin_salon(salon_id, db, admin)
 
 
 @router.put("/{salon_id}", response_model=SalonRead)
@@ -78,9 +78,9 @@ def update_salon(
     salon_id: int,
     payload: SalonUpdate,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> Salon:
-    salon = get_owned_salon(salon_id, db, owner)
+    salon = get_admin_salon(salon_id, db, admin)
 
     update_data = payload.model_dump(exclude_unset=True)
     for field_name, value in update_data.items():
@@ -96,9 +96,9 @@ def update_salon(
 def get_operating_hours(
     salon_id: int,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> list[OperatingHourRead]:
-    get_owned_salon(salon_id, db, owner)
+    get_admin_salon(salon_id, db, admin)
 
     query = (
         select(SalonOperatingHour)
@@ -120,9 +120,9 @@ def update_operating_hours(
     salon_id: int,
     payload: OperatingHoursUpdate,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> list[OperatingHourRead]:
-    get_owned_salon(salon_id, db, owner)
+    get_admin_salon(salon_id, db, admin)
 
     query = select(SalonOperatingHour).where(SalonOperatingHour.salon_id == salon_id)
     existing_by_day = {hour.day_of_week: hour for hour in db.scalars(query).all()}
@@ -141,4 +141,4 @@ def update_operating_hours(
         db.add(hour)
 
     db.commit()
-    return get_operating_hours(salon_id, db, owner)
+    return get_operating_hours(salon_id, db, admin)

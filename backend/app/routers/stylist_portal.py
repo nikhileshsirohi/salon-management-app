@@ -8,13 +8,26 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_stylist
-from app.models.booking import Booking, BookingCharge, BookingStatus, BookingType, PaymentStatus
+from app.models.booking import (
+    Booking,
+    BookingCharge,
+    BookingService,
+    BookingStatus,
+    BookingType,
+    PaymentStatus,
+)
 from app.models.service import Service
 from app.models.salon import Salon
 from app.models.stylist import Stylist
 from app.routers.stylists import replace_specialties, to_stylist_read
-from app.routers.bookings import booking_rows_query, to_booking_read
-from app.routers.public import calculate_available_slots, get_active_stylist_service_salon
+from app.routers.bookings import booking_rows_query, load_booking_services, to_booking_read
+from app.routers.public import (
+    calculate_available_slots,
+    get_active_stylist_service_salon,
+    resolve_services,
+    total_duration_minutes,
+    total_price,
+)
 from app.schemas.booking import (
     BookingCancel,
     BookingRead,
@@ -52,7 +65,16 @@ def get_stylist_schedule(
         .order_by(Booking.starts_at_utc)
     )
     rows = db.execute(query).all()
-    return [to_booking_read(booking, charge, stylist, service) for booking, charge, stylist, service in rows]
+    return [
+        to_booking_read(
+            booking,
+            charge,
+            stylist,
+            service,
+            services=load_booking_services(db, booking.id),
+        )
+        for booking, charge, stylist, service in rows
+    ]
 
 
 @router.get("/booking-history", response_model=list[BookingRead])
@@ -71,7 +93,16 @@ def get_stylist_booking_history(
 
     query = query.order_by(Booking.starts_at_utc.desc())
     rows = db.execute(query).all()
-    return [to_booking_read(booking, charge, stylist, service) for booking, charge, stylist, service in rows]
+    return [
+        to_booking_read(
+            booking,
+            charge,
+            stylist,
+            service,
+            services=load_booking_services(db, booking.id),
+        )
+        for booking, charge, stylist, service in rows
+    ]
 
 
 def get_current_stylist_booking(
@@ -102,7 +133,13 @@ def read_stylist_booking(db: Session, booking_id: int, current_stylist: Stylist)
         )
 
     booking, charge, stylist, service = row
-    return to_booking_read(booking, charge, stylist, service)
+    return to_booking_read(
+        booking,
+        charge,
+        stylist,
+        service,
+        services=load_booking_services(db, booking.id),
+    )
 
 
 @router.put("/bookings/{booking_id}/status", response_model=BookingRead)
@@ -200,6 +237,12 @@ def reschedule_my_booking(
         current_stylist.id,
         booking.service_id,
     )
+    booking_services = load_booking_services(db, booking.id)
+    total_duration = (
+        sum(svc.duration_minutes for svc in booking_services)
+        if booking_services
+        else service.duration_minutes
+    )
 
     starts_at_utc = payload.starts_at_utc
     if starts_at_utc.tzinfo is None:
@@ -214,6 +257,7 @@ def reschedule_my_booking(
         salon,
         local_start.date(),
         exclude_booking_id=booking.id,
+        duration_minutes=total_duration,
     )
     matching_slot = next(
         (slot for slot in available_slots if slot.starts_at_utc == starts_at_utc),
@@ -302,6 +346,7 @@ def get_my_salon(
 def get_my_availability(
     service_id: int,
     target_date: date = Query(..., alias="date"),
+    additional_service_ids: list[int] = Query(default_factory=list),
     db: Session = Depends(get_db),
     current_stylist: Stylist = Depends(get_current_stylist),
 ) -> AvailabilityRead:
@@ -310,12 +355,23 @@ def get_my_availability(
         current_stylist.id,
         service_id,
     )
-    slots = calculate_available_slots(db, stylist, service, salon, target_date)
+    services = resolve_services(db, salon.id, service.id, additional_service_ids)
+    duration = total_duration_minutes(services)
+    slots = calculate_available_slots(
+        db,
+        stylist,
+        service,
+        salon,
+        target_date,
+        duration_minutes=duration,
+    )
 
     return AvailabilityRead(
         salon_id=salon.id,
         stylist_id=stylist.id,
         service_id=service.id,
+        service_ids=[svc.id for svc in services],
+        total_duration_minutes=duration,
         date=target_date,
         timezone=salon.timezone,
         slots=slots,
@@ -333,6 +389,9 @@ def create_walk_in_booking(
         current_stylist.id,
         payload.service_id,
     )
+    services = resolve_services(db, salon.id, service.id, payload.additional_service_ids)
+    duration = total_duration_minutes(services)
+    amount = total_price(services)
 
     starts_at_utc = payload.starts_at_utc
     if starts_at_utc.tzinfo is None:
@@ -340,7 +399,14 @@ def create_walk_in_booking(
     starts_at_utc = starts_at_utc.astimezone(UTC)
 
     local_start = starts_at_utc.astimezone(ZoneInfo(salon.timezone))
-    available_slots = calculate_available_slots(db, stylist, service, salon, local_start.date())
+    available_slots = calculate_available_slots(
+        db,
+        stylist,
+        service,
+        salon,
+        local_start.date(),
+        duration_minutes=duration,
+    )
     matching_slot = next(
         (slot for slot in available_slots if slot.starts_at_utc == starts_at_utc),
         None,
@@ -370,9 +436,20 @@ def create_walk_in_booking(
         db.add(booking)
         db.flush()
 
+        for order_index, svc in enumerate(services):
+            db.add(
+                BookingService(
+                    booking_id=booking.id,
+                    service_id=svc.id,
+                    order_index=order_index,
+                    duration_minutes=svc.duration_minutes,
+                    price=svc.price,
+                )
+            )
+
         charge = BookingCharge(
             booking_id=booking.id,
-            amount=service.price,
+            amount=amount,
             status=PaymentStatus.UNPAID,
         )
         db.add(charge)
@@ -386,4 +463,10 @@ def create_walk_in_booking(
 
     row = db.execute(booking_rows_query().where(Booking.id == booking.id)).one()
     created_booking, created_charge, created_stylist, created_service = row
-    return to_booking_read(created_booking, created_charge, created_stylist, created_service)
+    return to_booking_read(
+        created_booking,
+        created_charge,
+        created_stylist,
+        created_service,
+        services=load_booking_services(db, created_booking.id),
+    )

@@ -42,3 +42,4 @@ class StylistRead(StylistBase):
     user_id: int | None = None
     email: EmailStr | None = None
     specialties: list[str] = Field(default_factory=list)
+    clients_served: int = 0

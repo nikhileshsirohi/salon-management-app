@@ -53,7 +53,7 @@ def require_role(required_role: UserRole) -> Callable[[User], User]:
     return role_dependency
 
 
-def get_current_owner(current_user: User = Depends(require_role(UserRole.OWNER))) -> User:
+def get_current_admin(current_user: User = Depends(require_role(UserRole.ADMIN))) -> User:
     return current_user
 
 
@@ -61,10 +61,10 @@ def get_current_stylist_user(current_user: User = Depends(require_role(UserRole.
     return current_user
 
 
-def get_owned_salon(
+def get_admin_salon(
     salon_id: int,
     db: Session,
-    owner: User,
+    admin: User,
 ) -> Salon:
     salon = db.get(Salon, salon_id)
     if salon is None:
@@ -73,19 +73,19 @@ def get_owned_salon(
             detail="Salon not found",
         )
 
-    if salon.owner_user_id != owner.id:
+    if salon.admin_user_id != admin.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You do not own this salon",
+            detail="You do not administer this salon",
         )
 
     return salon
 
 
-def get_owned_stylist(
+def get_admin_stylist(
     stylist_id: int,
     db: Session,
-    owner: User,
+    admin: User,
 ) -> Stylist:
     stylist = db.get(Stylist, stylist_id)
     if stylist is None:
@@ -94,7 +94,7 @@ def get_owned_stylist(
             detail="Stylist not found",
         )
 
-    get_owned_salon(stylist.salon_id, db, owner)
+    get_admin_salon(stylist.salon_id, db, admin)
     return stylist
 
 

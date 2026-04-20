@@ -10,7 +10,7 @@ class Salon(Base):
     __tablename__ = "salons"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    owner_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    admin_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(255))
     address: Mapped[str | None] = mapped_column(String(500))
     phone: Mapped[str | None] = mapped_column(String(50))

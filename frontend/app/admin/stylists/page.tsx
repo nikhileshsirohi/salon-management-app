@@ -6,7 +6,7 @@ import { ProtectedPage } from "@/components/layout/protected-page";
 import { Notice } from "@/components/ui/notice";
 import { PasswordField } from "@/components/ui/password-field";
 import { apiRequest, formatTime } from "@/lib/api";
-import { useOwnerSalon } from "@/lib/use-owner-salon";
+import { useAdminSalon } from "@/lib/use-admin-salon";
 import type { Stylist, StylistAvailability } from "@/types/api";
 
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -33,17 +33,17 @@ const emptyStylist: StylistForm = {
   specialties: "",
 };
 
-export default function OwnerStylistsPage() {
+export default function AdminStylistsPage() {
   return (
-    <AppShell area="owner">
-      <ProtectedPage role="owner">
-        {({ token }) => <OwnerStylists token={token} />}
+    <AppShell area="admin">
+      <ProtectedPage role="admin">
+        {({ token }) => <AdminStylists token={token} />}
       </ProtectedPage>
     </AppShell>
   );
 }
 
-function OwnerStylists({ token }: { token: string }) {
+function AdminStylists({ token }: { token: string }) {
   const [stylists, setStylists] = useState<Stylist[]>([]);
   const [selected, setSelected] = useState<Stylist | null>(null);
   const [availability, setAvailability] = useState<StylistAvailability[]>([]);
@@ -61,7 +61,7 @@ function OwnerStylists({ token }: { token: string }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const { salonId, loading: salonLoading, error: salonError } = useOwnerSalon(token);
+  const { salonId, loading: salonLoading, error: salonError } = useAdminSalon(token);
 
   async function loadStylists() {
     if (!salonId) return;
@@ -257,7 +257,7 @@ function OwnerStylists({ token }: { token: string }) {
     <main className="page">
       <section className="section-header">
         <div>
-          <span className="eyebrow">Owner</span>
+          <span className="eyebrow">Admin</span>
           <h1 className="page-title">Stylists</h1>
         </div>
       </section>
