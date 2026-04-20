@@ -13,17 +13,17 @@ const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 const defaultOpenTime = "09:00:00";
 const defaultCloseTime = "18:00:00";
 
-export default function OwnerSalonPage() {
+export default function AdminSalonPage() {
   return (
-    <AppShell area="owner">
-      <ProtectedPage role="owner">
-        {({ token, user }) => <OwnerSalon token={token} user={user} />}
+    <AppShell area="admin">
+      <ProtectedPage role="admin">
+        {({ token, user }) => <AdminSalon token={token} user={user} />}
       </ProtectedPage>
     </AppShell>
   );
 }
 
-function OwnerSalon({ token, user }: { token: string; user: User }) {
+function AdminSalon({ token, user }: { token: string; user: User }) {
   const [salon, setSalon] = useState<Salon | null>(null);
   const [hours, setHours] = useState<OperatingHour[]>([]);
   const [passwordForm, setPasswordForm] = useState({
@@ -161,7 +161,7 @@ function OwnerSalon({ token, user }: { token: string; user: User }) {
         <div className="grid grid-2 section">
           <div className="stack">
             <section className="card stack">
-              <h2>Owner profile</h2>
+              <h2>Admin profile</h2>
               <p className="muted">{user.email}</p>
             </section>
             <form className="card stack" onSubmit={savePassword}>

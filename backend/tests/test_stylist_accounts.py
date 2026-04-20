@@ -3,15 +3,15 @@ from fastapi.testclient import TestClient
 from tests.conftest import auth_headers
 
 
-def test_owner_creates_stylist_login_account(
+def test_admin_creates_stylist_login_account(
     client: TestClient,
     seeded_salon: dict[str, int],
 ) -> None:
-    owner_headers = auth_headers(client, "owner@test.com")
+    admin_headers = auth_headers(client, "admin@test.com")
 
     response = client.post(
         "/api/v1/stylists",
-        headers=owner_headers,
+        headers=admin_headers,
         json={
             "salon_id": seeded_salon["salon_id"],
             "email": "newstylist@test.com",

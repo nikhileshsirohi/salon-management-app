@@ -3,7 +3,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_owner, get_owned_salon, get_owned_stylist
+from app.core.dependencies import get_admin_salon, get_admin_stylist, get_current_admin
 from app.core.security import get_password_hash
 from app.models.availability import SalonOperatingHour, StylistAvailability
 from app.models.stylist import Stylist, StylistSpecialty
@@ -60,6 +60,7 @@ def to_stylist_read(db: Session, stylist: Stylist) -> StylistRead:
             "profile_photo_url": stylist.profile_photo_url,
             "is_active": stylist.is_active,
             "specialties": get_specialty_names(db, stylist.id),
+            "clients_served": stylist.lifetime_clients,
         }
     )
 
@@ -132,9 +133,9 @@ def list_stylists(
     salon_id: int = Query(..., description="Salon id to list stylists for"),
     include_inactive: bool = False,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> list[StylistRead]:
-    get_owned_salon(salon_id, db, owner)
+    get_admin_salon(salon_id, db, admin)
     query = select(Stylist).where(Stylist.salon_id == salon_id).order_by(Stylist.name)
 
     if not include_inactive:
@@ -148,9 +149,9 @@ def list_stylists(
 def create_stylist(
     payload: StylistCreate,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> StylistRead:
-    get_owned_salon(payload.salon_id, db, owner)
+    get_admin_salon(payload.salon_id, db, admin)
 
     existing_user = db.scalar(select(User).where(User.email == payload.email))
     if existing_user is not None:
@@ -182,9 +183,9 @@ def create_stylist(
 def get_stylist(
     stylist_id: int,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> StylistRead:
-    stylist = get_owned_stylist(stylist_id, db, owner)
+    stylist = get_admin_stylist(stylist_id, db, admin)
     return to_stylist_read(db, stylist)
 
 
@@ -193,9 +194,9 @@ def update_stylist(
     stylist_id: int,
     payload: StylistUpdate,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> StylistRead:
-    stylist = get_owned_stylist(stylist_id, db, owner)
+    stylist = get_admin_stylist(stylist_id, db, admin)
 
     update_data = payload.model_dump(exclude_unset=True, exclude={"specialties", "password"})
     for field_name, value in update_data.items():
@@ -229,9 +230,9 @@ def update_stylist(
 def deactivate_stylist(
     stylist_id: int,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> StylistRead:
-    stylist = get_owned_stylist(stylist_id, db, owner)
+    stylist = get_admin_stylist(stylist_id, db, admin)
 
     stylist.is_active = False
     db.add(stylist)
@@ -244,9 +245,9 @@ def deactivate_stylist(
 def get_stylist_availability(
     stylist_id: int,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> list[StylistAvailabilityRead]:
-    get_owned_stylist(stylist_id, db, owner)
+    get_admin_stylist(stylist_id, db, admin)
     return list_availability_for_stylist(db, stylist_id)
 
 
@@ -255,9 +256,9 @@ def replace_stylist_availability(
     stylist_id: int,
     payload: StylistAvailabilityReplace,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> list[StylistAvailabilityRead]:
-    stylist = get_owned_stylist(stylist_id, db, owner)
+    stylist = get_admin_stylist(stylist_id, db, admin)
     validate_against_salon_hours(db, stylist, payload.availability)
 
     db.execute(delete(StylistAvailability).where(StylistAvailability.stylist_id == stylist_id))

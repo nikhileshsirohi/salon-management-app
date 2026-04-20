@@ -106,7 +106,20 @@ export function StylistBookingCard({ booking, token, onChanged }: StylistBooking
           src="https://images.unsplash.com/photo-1522337660859-02fbefca4702?auto=format&fit=crop&w=500&q=80"
         />
         <div>
-          <h3>{booking.service_name}</h3>
+          <h3>
+            {booking.services && booking.services.length > 0
+              ? booking.services.map((s) => s.name).join(" + ")
+              : booking.service_name}
+          </h3>
+          {booking.services && booking.services.length > 1 && (
+            <div className="row" style={{ gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+              {booking.services.map((service) => (
+                <span className="pill rose" key={service.service_id}>
+                  {service.name}
+                </span>
+              ))}
+            </div>
+          )}
           <p>{new Date(booking.starts_at_utc).toLocaleString()}</p>
           <p>{formatCurrency(booking.amount)}</p>
           {booking.notes && <p className="muted">{booking.notes}</p>}

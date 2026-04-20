@@ -8,10 +8,18 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.availability import SalonOperatingHour, StylistAvailability
-from app.models.booking import Booking, BookingCharge, BookingStatus, BookingType, PaymentStatus
+from app.models.booking import (
+    Booking,
+    BookingCharge,
+    BookingService,
+    BookingStatus,
+    BookingType,
+    PaymentStatus,
+)
 from app.models.salon import Salon
 from app.models.service import Service
 from app.models.stylist import Stylist, StylistSpecialty
+from app.schemas.booking import BookingServiceRead
 from app.schemas.public import (
     AvailabilityRead,
     AvailableSlotRead,
@@ -67,6 +75,7 @@ def to_stylist_read(db: Session, stylist: Stylist) -> StylistRead:
             "profile_photo_url": stylist.profile_photo_url,
             "is_active": stylist.is_active,
             "specialties": get_specialty_names(db, stylist.id),
+            "clients_served": stylist.lifetime_clients,
         }
     )
 
@@ -120,6 +129,62 @@ def get_active_stylist_service_salon(
     return stylist, service, salon
 
 
+def resolve_services(
+    db: Session,
+    salon_id: int,
+    primary_service_id: int,
+    additional_service_ids: list[int],
+) -> list[Service]:
+    """Resolve the full ordered list of services for a booking.
+
+    The primary service is always first. Additional services must belong to
+    the same salon and be active. Duplicates are rejected.
+    """
+
+    ordered_ids: list[int] = [primary_service_id]
+    seen = {primary_service_id}
+    for extra_id in additional_service_ids:
+        if extra_id in seen:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Duplicate service in booking",
+            )
+        ordered_ids.append(extra_id)
+        seen.add(extra_id)
+
+    if not ordered_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one service is required",
+        )
+
+    services_by_id = {
+        service.id: service
+        for service in db.scalars(select(Service).where(Service.id.in_(ordered_ids)))
+    }
+    resolved: list[Service] = []
+    for sid in ordered_ids:
+        svc = services_by_id.get(sid)
+        if svc is None or not svc.is_active or svc.salon_id != salon_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Active service {sid} not found for this salon",
+            )
+        resolved.append(svc)
+    return resolved
+
+
+def total_duration_minutes(services: list[Service]) -> int:
+    return sum(service.duration_minutes for service in services)
+
+
+def total_price(services: list[Service]):
+    total = services[0].price.__class__(0)
+    for svc in services:
+        total += svc.price
+    return total
+
+
 def calculate_available_slots(
     db: Session,
     stylist: Stylist,
@@ -127,6 +192,9 @@ def calculate_available_slots(
     salon: Salon,
     target_date: date,
     exclude_booking_id: int | None = None,
+    *,
+    duration_minutes: int | None = None,
+    slot_step_minutes: int | None = None,
 ) -> list[AvailableSlotRead]:
     day_of_week = target_date.weekday()
     salon_hour = db.scalar(
@@ -162,11 +230,13 @@ def calculate_available_slots(
 
     existing_bookings = list(db.scalars(booking_query).all())
 
-    service_duration = timedelta(minutes=service.duration_minutes)
+    effective_duration = duration_minutes or service.duration_minutes
+    service_duration = timedelta(minutes=effective_duration)
     slots: list[AvailableSlotRead] = []
 
     for window in availability_windows:
-        slot_step = timedelta(minutes=window.slot_duration_minutes)
+        step_minutes = slot_step_minutes or window.slot_duration_minutes
+        slot_step = timedelta(minutes=step_minutes)
         slot_start = datetime.combine(target_date, window.starts_at)
         window_end = datetime.combine(target_date, window.ends_at)
 
@@ -240,18 +310,108 @@ def get_public_availability(
     stylist_id: int,
     service_id: int,
     target_date: date = Query(..., alias="date", description="booking date in YYYY-MM-DD format"),
+    additional_service_ids: list[int] = Query(
+        default_factory=list,
+        description="Optional extra service ids to book back-to-back with the primary service",
+    ),
     db: Session = Depends(get_db),
 ) -> AvailabilityRead:
     stylist, service, salon = get_active_stylist_service_salon(db, stylist_id, service_id)
-    slots = calculate_available_slots(db, stylist, service, salon, target_date)
+    services = resolve_services(db, salon.id, service.id, additional_service_ids)
+    duration = total_duration_minutes(services)
+    slots = calculate_available_slots(
+        db,
+        stylist,
+        service,
+        salon,
+        target_date,
+        duration_minutes=duration,
+    )
 
     return AvailabilityRead(
         salon_id=salon.id,
         stylist_id=stylist.id,
         service_id=service.id,
+        service_ids=[svc.id for svc in services],
+        total_duration_minutes=duration,
         date=target_date,
         timezone=salon.timezone,
         slots=slots,
+    )
+
+
+@router.get("/availability/any", response_model=AvailabilityRead)
+def get_public_availability_any_stylist(
+    salon_id: int,
+    service_id: int,
+    target_date: date = Query(..., alias="date", description="booking date in YYYY-MM-DD format"),
+    additional_service_ids: list[int] = Query(default_factory=list),
+    db: Session = Depends(get_db),
+) -> AvailabilityRead:
+    """Return merged availability across every active stylist in the salon.
+
+    For each time slot we pin the first stylist that has it free. The client
+    uses `slot.stylist_id` when posting the booking so the right chair is
+    reserved.
+    """
+
+    salon = db.get(Salon, salon_id)
+    if salon is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Salon not found",
+        )
+
+    service = db.get(Service, service_id)
+    if service is None or not service.is_active or service.salon_id != salon_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Active service not found for this salon",
+        )
+
+    services = resolve_services(db, salon.id, service.id, additional_service_ids)
+    duration = total_duration_minutes(services)
+
+    stylists = list(
+        db.scalars(
+            select(Stylist)
+            .where(Stylist.salon_id == salon_id, Stylist.is_active.is_(True))
+            .order_by(Stylist.lifetime_clients.desc(), Stylist.name)
+        ).all()
+    )
+
+    merged: dict[datetime, AvailableSlotRead] = {}
+    for stylist in stylists:
+        stylist_slots = calculate_available_slots(
+            db,
+            stylist,
+            service,
+            salon,
+            target_date,
+            duration_minutes=duration,
+        )
+        for slot in stylist_slots:
+            if slot.starts_at_utc not in merged:
+                merged[slot.starts_at_utc] = AvailableSlotRead(
+                    starts_at_local=slot.starts_at_local,
+                    ends_at_local=slot.ends_at_local,
+                    starts_at_utc=slot.starts_at_utc,
+                    ends_at_utc=slot.ends_at_utc,
+                    stylist_id=stylist.id,
+                    stylist_name=stylist.name,
+                )
+
+    ordered_slots = [merged[key] for key in sorted(merged.keys())]
+
+    return AvailabilityRead(
+        salon_id=salon.id,
+        stylist_id=0,
+        service_id=service.id,
+        service_ids=[svc.id for svc in services],
+        total_duration_minutes=duration,
+        date=target_date,
+        timezone=salon.timezone,
+        slots=ordered_slots,
     )
 
 
@@ -265,6 +425,9 @@ def create_public_booking(
         payload.stylist_id,
         payload.service_id,
     )
+    services = resolve_services(db, salon.id, service.id, payload.additional_service_ids)
+    duration = total_duration_minutes(services)
+    amount = total_price(services)
 
     starts_at_utc = payload.starts_at_utc
     if starts_at_utc.tzinfo is None:
@@ -273,7 +436,14 @@ def create_public_booking(
 
     local_start = starts_at_utc.astimezone(ZoneInfo(salon.timezone))
     target_date = local_start.date()
-    available_slots = calculate_available_slots(db, stylist, service, salon, target_date)
+    available_slots = calculate_available_slots(
+        db,
+        stylist,
+        service,
+        salon,
+        target_date,
+        duration_minutes=duration,
+    )
     matching_slot = next(
         (slot for slot in available_slots if slot.starts_at_utc == starts_at_utc),
         None,
@@ -303,9 +473,20 @@ def create_public_booking(
         db.add(booking)
         db.flush()
 
+        for order_index, svc in enumerate(services):
+            db.add(
+                BookingService(
+                    booking_id=booking.id,
+                    service_id=svc.id,
+                    order_index=order_index,
+                    duration_minutes=svc.duration_minutes,
+                    price=svc.price,
+                )
+            )
+
         charge = BookingCharge(
             booking_id=booking.id,
-            amount=service.price,
+            amount=amount,
             status=PaymentStatus.UNPAID,
         )
         db.add(charge)
@@ -332,4 +513,15 @@ def create_public_booking(
         status=booking.status.value,
         booking_type=booking.booking_type.value,
         amount=charge.amount,
+        total_duration_minutes=duration,
+        services=[
+            BookingServiceRead(
+                service_id=svc.id,
+                name=svc.name,
+                duration_minutes=svc.duration_minutes,
+                price=svc.price,
+                order_index=idx,
+            )
+            for idx, svc in enumerate(services)
+        ],
     )

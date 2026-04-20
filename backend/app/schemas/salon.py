@@ -43,7 +43,7 @@ class SalonRead(SalonBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    owner_user_id: int
+    admin_user_id: int
 
 
 class OperatingHourBase(BaseModel):

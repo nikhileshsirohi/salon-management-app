@@ -3,21 +3,21 @@ from fastapi.testclient import TestClient
 from tests.conftest import auth_headers
 
 
-def test_owner_login_and_me(client: TestClient, seeded_salon: dict[str, int]) -> None:
-    headers = auth_headers(client, "owner@test.com")
+def test_admin_login_and_me(client: TestClient, seeded_salon: dict[str, int]) -> None:
+    headers = auth_headers(client, "admin@test.com")
 
     response = client.get("/api/v1/auth/me", headers=headers)
 
     assert response.status_code == 200
-    assert response.json()["email"] == "owner@test.com"
-    assert response.json()["role"] == "owner"
+    assert response.json()["email"] == "admin@test.com"
+    assert response.json()["role"] == "admin"
 
 
-def test_owner_cannot_access_another_owner_salon(
+def test_admin_cannot_access_another_admin_salon(
     client: TestClient,
     seeded_salon: dict[str, int],
 ) -> None:
-    headers = auth_headers(client, "owner@test.com")
+    headers = auth_headers(client, "admin@test.com")
 
     response = client.get(
         f"/api/v1/services?salon_id={seeded_salon['other_salon_id']}",
@@ -33,7 +33,7 @@ def test_protected_services_require_auth(client: TestClient, seeded_salon: dict[
     assert response.status_code == 401
 
 
-def test_stylist_cannot_access_owner_services(
+def test_stylist_cannot_access_admin_services(
     client: TestClient,
     seeded_salon: dict[str, int],
 ) -> None:
@@ -63,27 +63,15 @@ def test_stylist_can_read_own_availability(
     assert len(response.json()["slots"]) > 0
 
 
-def test_owner_signup_creates_owner_and_single_salon(client: TestClient) -> None:
+def test_admin_signup_endpoint_is_removed(client: TestClient) -> None:
+    """Admins are provisioned backend-side only; the old signup route is gone."""
+
     response = client.post(
         "/api/v1/auth/owner-signup",
-        json={
-            "email": "new-owner@test.com",
-            "password": "password123",
-            "salon_name": "New Salon",
-            "salon_address": "Main Road",
-            "salon_phone": "1234567890",
-            "timezone": "Asia/Kolkata",
-        },
+        json={"email": "x@test.com", "password": "password123", "salon_name": "X"},
     )
 
-    assert response.status_code == 201
-    token = response.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
-
-    salon_response = client.get("/api/v1/salon/me/current", headers=headers)
-
-    assert salon_response.status_code == 200
-    assert salon_response.json()["name"] == "New Salon"
+    assert response.status_code == 404
 
 
 def test_public_salons_lists_available_salons(
@@ -97,7 +85,7 @@ def test_public_salons_lists_available_salons(
 
 
 def test_user_can_change_own_password(client: TestClient, seeded_salon: dict[str, int]) -> None:
-    headers = auth_headers(client, "owner@test.com")
+    headers = auth_headers(client, "admin@test.com")
 
     response = client.put(
         "/api/v1/auth/me/password",
@@ -106,11 +94,11 @@ def test_user_can_change_own_password(client: TestClient, seeded_salon: dict[str
     )
 
     assert response.status_code == 200
-    new_headers = auth_headers(client, "owner@test.com", password="newpassword123")
+    new_headers = auth_headers(client, "admin@test.com", password="newpassword123")
     assert "Authorization" in new_headers
 
 
-def test_stylist_can_update_own_profile_without_owner_access(
+def test_stylist_can_update_own_profile_without_admin_access(
     client: TestClient,
     seeded_salon: dict[str, int],
 ) -> None:
@@ -128,17 +116,17 @@ def test_stylist_can_update_own_profile_without_owner_access(
     assert response.json()["specialties"] == ["Color"]
 
 
-def test_owner_can_update_stylist_profile_but_not_email(
+def test_admin_can_update_stylist_profile_but_not_email(
     client: TestClient,
     seeded_salon: dict[str, int],
 ) -> None:
-    headers = auth_headers(client, "owner@test.com")
+    headers = auth_headers(client, "admin@test.com")
 
     response = client.put(
         f"/api/v1/stylists/{seeded_salon['stylist_id']}",
         headers=headers,
         json={
-            "name": "Owner Updated Stylist",
+            "name": "Admin Updated Stylist",
             "phone": "4445556666",
             "specialties": ["Cuts"],
             "password": "newpassword123",
@@ -146,7 +134,7 @@ def test_owner_can_update_stylist_profile_but_not_email(
     )
 
     assert response.status_code == 200
-    assert response.json()["name"] == "Owner Updated Stylist"
+    assert response.json()["name"] == "Admin Updated Stylist"
     assert response.json()["email"] == "stylist@test.com"
     assert response.json()["specialties"] == ["Cuts"]
     assert auth_headers(client, "stylist@test.com", password="newpassword123")

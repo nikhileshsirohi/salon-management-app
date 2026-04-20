@@ -6,12 +6,12 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_owner, get_owned_salon
+from app.core.dependencies import get_admin_salon, get_current_admin
 from app.models.availability import StylistAvailability
 from app.models.booking import Booking, BookingCharge, BookingStatus, PaymentStatus
 from app.models.stylist import Stylist
 from app.models.user import User
-from app.routers.bookings import booking_rows_query, to_booking_read
+from app.routers.bookings import booking_rows_query, load_booking_services, to_booking_read
 from app.schemas.booking import BookingRead
 from app.schemas.dashboard import (
     DashboardMetricRead,
@@ -57,7 +57,16 @@ def get_upcoming_appointments(
         .limit(limit)
     )
     rows = db.execute(query).all()
-    return [to_booking_read(booking, charge, stylist, service) for booking, charge, stylist, service in rows]
+    return [
+        to_booking_read(
+            booking,
+            charge,
+            stylist,
+            service,
+            services=load_booking_services(db, booking.id),
+        )
+        for booking, charge, stylist, service in rows
+    ]
 
 
 def get_today_revenue(db: Session, salon_id: int, target_date: date) -> Decimal:
@@ -134,9 +143,9 @@ def get_dashboard_summary(
     target_date: date = Query(..., alias="date"),
     upcoming_limit: int = Query(default=5, ge=1, le=20),
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> DashboardSummaryRead:
-    get_owned_salon(salon_id, db, owner)
+    get_admin_salon(salon_id, db, admin)
 
     today_bookings = db.scalar(
         select(func.count())

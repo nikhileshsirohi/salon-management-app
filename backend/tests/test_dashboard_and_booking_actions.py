@@ -46,7 +46,7 @@ def test_dashboard_revenue_counts_paid_bookings_only_and_keeps_paid_cancellation
     client: TestClient,
     seeded_salon: dict[str, int],
 ) -> None:
-    headers = auth_headers(client, "owner@test.com")
+    headers = auth_headers(client, "admin@test.com")
     booking = create_public_booking(client, seeded_salon, 0)
 
     assert dashboard_revenue(client, seeded_salon["salon_id"], headers) == Decimal("0.00")
@@ -72,7 +72,7 @@ def test_cancelled_unpaid_booking_cannot_be_marked_paid(
     client: TestClient,
     seeded_salon: dict[str, int],
 ) -> None:
-    headers = auth_headers(client, "owner@test.com")
+    headers = auth_headers(client, "admin@test.com")
     booking = create_public_booking(client, seeded_salon, 0)
 
     cancel_response = client.post(

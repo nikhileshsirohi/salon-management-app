@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -68,4 +68,25 @@ class BookingCharge(Base):
         Enum(PaymentStatus, values_callable=enum_values),
         default=PaymentStatus.UNPAID,
     )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class BookingService(Base):
+    """Join row tying a booking to one of its services.
+
+    A booking can have 1..N services. The primary service is also mirrored in
+    Booking.service_id (order_index == 0) for backward-compatible displays.
+    Duration and price are snapshotted at booking time so later service edits
+    don't retroactively change completed appointments.
+    """
+
+    __tablename__ = "booking_services"
+    __table_args__ = (UniqueConstraint("booking_id", "service_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    booking_id: Mapped[int] = mapped_column(ForeignKey("bookings.id"), index=True)
+    service_id: Mapped[int] = mapped_column(ForeignKey("services.id"), index=True)
+    order_index: Mapped[int] = mapped_column(Integer, default=0)
+    duration_minutes: Mapped[int] = mapped_column(Integer)
+    price: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

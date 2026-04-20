@@ -1,7 +1,7 @@
 "use client";
 
 import { API_URL, apiRequest } from "@/lib/api";
-import type { AuthToken, OwnerSignupPayload, User } from "@/types/api";
+import type { AuthToken, User } from "@/types/api";
 
 const TOKEN_KEY = "salon_app_token";
 const USER_KEY = "salon_app_user";
@@ -63,15 +63,6 @@ export async function login(username: string, password: string) {
 
   storeAuth(data as AuthToken);
   return data as AuthToken;
-}
-
-export async function signupOwner(payload: OwnerSignupPayload) {
-  const response = await apiRequest<AuthToken>("/auth/owner-signup", {
-    method: "POST",
-    body: payload,
-  });
-  storeAuth(response);
-  return response;
 }
 
 export async function changeMyPassword(token: string, currentPassword: string, newPassword: string) {

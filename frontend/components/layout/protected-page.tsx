@@ -31,7 +31,7 @@ export function ProtectedPage({ role, children }: ProtectedPageProps) {
       .then((freshUser) => {
         setUser(freshUser);
         if (freshUser.role !== role) {
-          const destination = freshUser.role === "owner" ? "/owner/dashboard" : "/stylist/dashboard";
+          const destination = freshUser.role === "admin" ? "/admin/dashboard" : "/stylist/dashboard";
           setError(`This page is for ${role}s only. Redirecting...`);
           router.replace(destination);
         }

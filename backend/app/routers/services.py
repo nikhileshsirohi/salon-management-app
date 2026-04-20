@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_owner, get_owned_salon
+from app.core.dependencies import get_admin_salon, get_current_admin
 from app.models.service import Service
 from app.models.user import User
 from app.schemas.service import ServiceCreate, ServiceRead, ServiceUpdate
@@ -21,9 +21,9 @@ def list_services(
     salon_id: int = Query(..., description="Salon id to list services for"),
     include_inactive: bool = False,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> list[Service]:
-    get_owned_salon(salon_id, db, owner)
+    get_admin_salon(salon_id, db, admin)
     query = select(Service).where(Service.salon_id == salon_id).order_by(Service.name)
 
     if not include_inactive:
@@ -36,9 +36,9 @@ def list_services(
 def create_service(
     payload: ServiceCreate,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> Service:
-    get_owned_salon(payload.salon_id, db, owner)
+    get_admin_salon(payload.salon_id, db, admin)
 
     service = Service(**payload.model_dump())
     db.add(service)
@@ -51,7 +51,7 @@ def create_service(
 def get_service(
     service_id: int,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> Service:
     service = db.get(Service, service_id)
     if service is None:
@@ -59,7 +59,7 @@ def get_service(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Service not found",
         )
-    get_owned_salon(service.salon_id, db, owner)
+    get_admin_salon(service.salon_id, db, admin)
     return service
 
 
@@ -68,7 +68,7 @@ def update_service(
     service_id: int,
     payload: ServiceUpdate,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> Service:
     service = db.get(Service, service_id)
     if service is None:
@@ -77,7 +77,7 @@ def update_service(
             detail="Service not found",
         )
 
-    get_owned_salon(service.salon_id, db, owner)
+    get_admin_salon(service.salon_id, db, admin)
     update_data = payload.model_dump(exclude_unset=True)
     for field_name, value in update_data.items():
         setattr(service, field_name, value)
@@ -92,7 +92,7 @@ def update_service(
 def deactivate_service(
     service_id: int,
     db: Session = Depends(get_db),
-    owner: User = Depends(get_current_owner),
+    admin: User = Depends(get_current_admin),
 ) -> Service:
     service = db.get(Service, service_id)
     if service is None:
@@ -101,7 +101,7 @@ def deactivate_service(
             detail="Service not found",
         )
 
-    get_owned_salon(service.salon_id, db, owner)
+    get_admin_salon(service.salon_id, db, admin)
     service.is_active = False
     db.add(service)
     db.commit()

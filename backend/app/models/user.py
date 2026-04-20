@@ -8,7 +8,7 @@ from app.core.database import Base
 
 
 class UserRole(StrEnum):
-    OWNER = "owner"
+    ADMIN = "admin"
     STYLIST = "stylist"
 
 

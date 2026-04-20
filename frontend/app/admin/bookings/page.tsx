@@ -5,7 +5,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ProtectedPage } from "@/components/layout/protected-page";
 import { Notice } from "@/components/ui/notice";
 import { apiRequest, formatCurrency, formatTime, todayInputValue } from "@/lib/api";
-import { useOwnerSalon } from "@/lib/use-owner-salon";
+import { useAdminSalon } from "@/lib/use-admin-salon";
 import type { AvailabilityResponse, AvailableSlot, Booking } from "@/types/api";
 
 function initialDateRange() {
@@ -25,17 +25,17 @@ function initialDateRange() {
   };
 }
 
-export default function OwnerBookingsPage() {
+export default function AdminBookingsPage() {
   return (
-    <AppShell area="owner">
-      <ProtectedPage role="owner">
-        {({ token }) => <OwnerBookings token={token} />}
+    <AppShell area="admin">
+      <ProtectedPage role="admin">
+        {({ token }) => <AdminBookings token={token} />}
       </ProtectedPage>
     </AppShell>
   );
 }
 
-function OwnerBookings({ token }: { token: string }) {
+function AdminBookings({ token }: { token: string }) {
   const initialDates = initialDateRange();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [dateFrom, setDateFrom] = useState(initialDates.dateFrom);
@@ -47,7 +47,7 @@ function OwnerBookings({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const { salonId, loading: salonLoading, error: salonError } = useOwnerSalon(token);
+  const { salonId, loading: salonLoading, error: salonError } = useAdminSalon(token);
 
   async function loadBookings() {
     if (!salonId) return;
@@ -127,8 +127,19 @@ function OwnerBookings({ token }: { token: string }) {
     setRescheduleLoadingById((current) => ({ ...current, [booking.id]: true }));
     setRescheduleSlotById((current) => ({ ...current, [booking.id]: undefined }));
     try {
+      const additionalIds =
+        booking.services
+          ?.filter((s) => s.service_id !== booking.service_id)
+          .map((s) => s.service_id) ?? [];
+      const params = new URLSearchParams();
+      params.set("stylist_id", String(booking.stylist_id));
+      params.set("service_id", String(booking.service_id));
+      params.set("date", targetDate);
+      for (const extraId of additionalIds) {
+        params.append("additional_service_ids", String(extraId));
+      }
       const availability = await apiRequest<AvailabilityResponse>(
-        `/public/availability?stylist_id=${booking.stylist_id}&service_id=${booking.service_id}&date=${targetDate}`,
+        `/public/availability?${params.toString()}`,
       );
       setRescheduleSlotsById((current) => ({ ...current, [booking.id]: availability.slots }));
       setRescheduleDateById((current) => ({ ...current, [booking.id]: targetDate }));
@@ -144,7 +155,7 @@ function OwnerBookings({ token }: { token: string }) {
     <main className="page">
         <section className="section-header">
           <div>
-            <span className="eyebrow">Owner</span>
+            <span className="eyebrow">Admin</span>
             <h1 className="page-title">Bookings</h1>
           </div>
           <div className="row">
@@ -193,7 +204,18 @@ function OwnerBookings({ token }: { token: string }) {
                         )}
                       </td>
                       <td>
-                        {booking.service_name} with {booking.stylist_name}
+                        {booking.services && booking.services.length > 0
+                          ? booking.services.map((s) => s.name).join(" + ")
+                          : booking.service_name}{" "}
+                        with {booking.stylist_name}
+                        {booking.services && booking.services.length > 1 && (
+                          <>
+                            {" "}
+                            <span className="pill rose" style={{ fontSize: 11 }}>
+                              {booking.services.length} services
+                            </span>
+                          </>
+                        )}
                         <br />
                         {new Date(booking.starts_at_utc).toLocaleString()}
                       </td>
@@ -286,7 +308,7 @@ function OwnerBookings({ token }: { token: string }) {
                             className="button danger"
                             disabled={booking.status !== "booked"}
                             onClick={() =>
-                              action(`/bookings/${booking.id}/cancel`, "POST", { reason: "Cancelled by owner" }, "Booking cancelled.")
+                              action(`/bookings/${booking.id}/cancel`, "POST", { reason: "Cancelled by admin" }, "Booking cancelled.")
                             }
                             type="button"
                           >

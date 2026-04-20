@@ -50,32 +50,32 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
 
 @pytest.fixture()
 def seeded_salon(db_session: Session) -> dict[str, int]:
-    owner = User(
-        email="owner@test.com",
+    admin = User(
+        email="admin@test.com",
         password_hash=get_password_hash("password123"),
-        role=UserRole.OWNER,
+        role=UserRole.ADMIN,
     )
-    other_owner = User(
+    other_admin = User(
         email="other@test.com",
         password_hash=get_password_hash("password123"),
-        role=UserRole.OWNER,
+        role=UserRole.ADMIN,
     )
     stylist_user = User(
         email="stylist@test.com",
         password_hash=get_password_hash("password123"),
         role=UserRole.STYLIST,
     )
-    db_session.add_all([owner, other_owner, stylist_user])
+    db_session.add_all([admin, other_admin, stylist_user])
     db_session.flush()
 
     salon = Salon(
-        owner_user_id=owner.id,
+        admin_user_id=admin.id,
         name="Test Salon",
         timezone="Asia/Kolkata",
         default_slot_duration_minutes=30,
     )
     other_salon = Salon(
-        owner_user_id=other_owner.id,
+        admin_user_id=other_admin.id,
         name="Other Salon",
         timezone="Asia/Kolkata",
         default_slot_duration_minutes=30,
@@ -121,8 +121,8 @@ def seeded_salon(db_session: Session) -> dict[str, int]:
     db_session.commit()
 
     return {
-        "owner_id": owner.id,
-        "other_owner_id": other_owner.id,
+        "admin_id": admin.id,
+        "other_admin_id": other_admin.id,
         "stylist_user_id": stylist_user.id,
         "salon_id": salon.id,
         "other_salon_id": other_salon.id,
