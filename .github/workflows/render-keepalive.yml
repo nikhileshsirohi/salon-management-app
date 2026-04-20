@@ -4,9 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     # GitHub cron runs in UTC. These windows map to 09:00-23:59 Asia/Kolkata.
-    - cron: "30,40,50 3 * * *"
-    - cron: "*/10 4-17 * * *"
-    - cron: "0,10,20 18 * * *"
+    - cron: "*/5 * * * *"  
 
 jobs:
   ping:
